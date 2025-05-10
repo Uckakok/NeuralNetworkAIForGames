@@ -143,7 +143,7 @@ NeuralNetwork NeuralNetwork::CloneWithNewId() const
     return clone;
 }
 
-void NeuralNetwork::Save(std::string gameName) const 
+void NeuralNetwork::Save(std::string gameName) const
 {
     std::ofstream out(gameName + std::to_string(Id) + ".nn");
     if (!out)
@@ -154,14 +154,13 @@ void NeuralNetwork::Save(std::string gameName) const
     out << Id << '\n';
     out << m_weights.size() << '\n';
 
-    for (size_t i = 0; i < m_weights.size(); ++i) 
+    for (size_t i = 0; i < m_weights.size(); ++i)
     {
         out << m_weights[i].size() << '\n';
         for (float w : m_weights[i])
         {
             out << w << ' ';
         }
-
         out << '\n';
 
         out << m_biases[i].size() << '\n';
@@ -171,9 +170,11 @@ void NeuralNetwork::Save(std::string gameName) const
         }
         out << '\n';
     }
+
+    out << m_minEvalKnown << ' ' << m_maxEvalKnown << '\n';
 }
 
-NeuralNetwork NeuralNetwork::Load(const std::string& filename) 
+NeuralNetwork NeuralNetwork::Load(const std::string& filename)
 {
     std::ifstream in(filename);
     if (!in)
@@ -189,7 +190,7 @@ NeuralNetwork NeuralNetwork::Load(const std::string& filename)
     nn.m_weights.resize(numLayers);
     nn.m_biases.resize(numLayers);
 
-    for (size_t i = 0; i < numLayers; ++i) 
+    for (size_t i = 0; i < numLayers; ++i)
     {
         size_t wSize;
         in >> wSize;
@@ -207,6 +208,8 @@ NeuralNetwork NeuralNetwork::Load(const std::string& filename)
             in >> nn.m_biases[i][j];
         }
     }
+
+    in >> nn.m_minEvalKnown >> nn.m_maxEvalKnown;
 
     return nn;
 }

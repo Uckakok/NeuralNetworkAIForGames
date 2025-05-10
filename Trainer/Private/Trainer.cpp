@@ -11,8 +11,8 @@
 #include <algorithm>
 #include <unordered_set>
 
-Trainer::Trainer(std::unique_ptr<IGame> baseGamee)
-    : m_baseGame(std::move(m_baseGame)), m_championImprovements(0)
+Trainer::Trainer(std::unique_ptr<IGame> baseGame)
+    : m_baseGame(std::move(baseGame)), m_championImprovements(0)
 {
     for (int i = 0; i < m_populationSize; ++i) {
         m_population.emplace_back(Player{ std::make_unique<NeuralNetwork>(
