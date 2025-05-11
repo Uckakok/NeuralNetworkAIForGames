@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Checkers.h"
 #include <iostream>
+#include <algorithm>
 
 Checkers::Checkers() 
 {
@@ -164,15 +165,14 @@ bool Checkers::InterpretAndMakeMove(const std::string& moveStr)
 }
 
 
-bool Checkers::MakeMove(int moveCode) 
+bool Checkers::MakeMove(int moveCode)
 {
     if (m_winner != Winner::OnGoing)
     {
         return false;
     }
 
-    int from = moveCode / 100;
-    int to = moveCode % 100;
+    int from = moveCode / 100, to = moveCode % 100;
     int fr = from / 8, fc = from % 8;
     int tr = to / 8, tc = to % 8;
 
@@ -187,165 +187,193 @@ bool Checkers::MakeMove(int moveCode)
     }
 
     int piece = m_board[fr][fc];
-    if ((m_currentPlayer == 1 && (piece != 1 && piece != 3)) || (m_currentPlayer == 2 && (piece != 2 && piece != 4)))
+    bool isKing = (piece == 3 || piece == 4);
+    if ((m_currentPlayer == 1 && (piece != 1 && piece != 3)) ||
+        (m_currentPlayer == 2 && (piece != 2 && piece != 4)))
     {
         return false;
     }
 
     int dr = tr - fr, dc = tc - fc;
-    if (std::abs(dc) != std::abs(dr))
+    if (std::abs(dr) != std::abs(dc))
     {
         return false;
     }
 
-    if (m_board[tr][tc] != 0)
-    {
-        return false;
-    }
-
-    bool isKing = (piece == 3 || piece == 4);
-    int dir = (m_currentPlayer == 1 ? -1 : 1);
     bool isCapture = false;
-    int capturedR = -1, capturedC = -1, capturedPiece = 0;
+    int capR = -1, capC = -1, capPiece = 0;
 
-    if (std::abs(dr) == 1 && !isKing && dr != dir && piece != 3 && piece != 4)
+    if (isKing)
     {
-        return false;
-    }
+        int steps = std::abs(dr);
+        int drStep = dr / steps, dcStep = dc / steps;
 
-    if (std::abs(dr) == 2 && std::abs(dc) == 2) 
-    {
-        int mr = (fr + tr) / 2, mc = (fc + tc) / 2;
-        int midPiece = m_board[mr][mc];
-        if (midPiece != 0 && (midPiece % 2) != (piece % 2)) 
+        int enemyCount = 0;
+        for (int s = 1; s < steps; ++s)
         {
-            isCapture = true;
-            capturedR = mr;
-            capturedC = mc;
-            capturedPiece = midPiece;
+            int r = fr + s * drStep, c = fc + s * dcStep;
+            if (m_board[r][c] != 0)
+            {
+                if ((m_board[r][c] % 2) == (piece % 2))
+                {
+                    return false;
+                }
+                if (++enemyCount > 1)
+                {
+                    return false;
+                }
+                capR = r; capC = c; capPiece = m_board[r][c];
+            }
         }
-        else 
+
+        if (m_board[tr][tc] != 0)
         {
             return false;
         }
-    }
-    else if (m_multiCaptureRow != -1)
-    {
-        return false;
-    }
 
-    if (m_multiCaptureRow == -1) 
-    {
-        std::vector<int> validMoves = GetValidMoves();
-        for (int move : validMoves) 
+        if (enemyCount == 1)
         {
-            int f = move / 100, t = move % 100;
-            if (std::abs(f / 8 - t / 8) == 2 && !isCapture)
+            isCapture = true;
+        }
+        else if (enemyCount == 0)
+        {
+            if (m_multiCaptureRow != -1)
             {
                 return false;
             }
         }
-    }
-
-    MoveRecord record;
-    record.moveCode = moveCode;
-    record.capturedR = capturedR;
-    record.capturedC = capturedC;
-    record.capturedPiece = capturedPiece;
-    record.multiCaptureRow = m_multiCaptureRow;
-    record.multiCaptureCol = m_multiCaptureCol;
-    record.boardState = m_board;
-    record.savedPlayer = m_currentPlayer;
-    record.savedWinner = m_winner;
-
-    m_board[tr][tc] = piece;
-    m_board[fr][fc] = 0;
-    if (isCapture) m_board[capturedR][capturedC] = 0;
-
-    if ((m_currentPlayer == 1 && tr == 0 && piece == 1))
-    {
-        m_board[tr][tc] = 3;
-    }
-    if ((m_currentPlayer == 2 && tr == 7 && piece == 2))
-    {
-        m_board[tr][tc] = 4;
-    }
-
-    bool willContinueCapture = false;
-    if (isCapture) 
-    {
-        int newPiece = m_board[tr][tc];
-        std::vector<std::pair<int, int>> directions = { {1, 1}, {1, -1}, {-1, 1}, {-1, -1} };
-
-        for (const auto& dir : directions) 
+        else
         {
-            int dr2 = dir.first, dc2 = dir.second;
-            int mr = tr + dr2, mc = tc + dc2;
-            int tr2 = tr + 2 * dr2, tc2 = tc + 2 * dc2;
-
-            if (tr2 >= 0 && tr2 < 8 && tc2 >= 0 && tc2 < 8 &&
-                mr >= 0 && mr < 8 && mc >= 0 && mc < 8 &&
-                m_board[tr2][tc2] == 0 &&
-                m_board[mr][mc] != 0 &&
-                (m_board[mr][mc] % 2 != m_board[tr][tc] % 2)) 
+            return false;
+        }
+    }
+    else
+    {
+        if (std::abs(dr) == 1)
+        {
+            if (m_multiCaptureRow != -1) return false;
+            if (m_board[tr][tc] != 0)       return false;
+            if ((m_currentPlayer == 1 && dr != -1) ||
+                (m_currentPlayer == 2 && dr != 1))
             {
-                m_multiCaptureRow = tr;
-                m_multiCaptureCol = tc;
-                willContinueCapture = true;
-                break;
+                return false;
             }
+        }
+        else if (std::abs(dr) == 2)
+        {
+            int mr = (fr + tr) / 2, mc = (fc + tc) / 2;
+            int mid = m_board[mr][mc];
+            if (mid == 0 || (mid % 2) == (piece % 2) || m_board[tr][tc] != 0)
+            {
+                return false;
+            }
+            isCapture = true;
+            capR = mr; capC = mc; capPiece = mid;
+        }
+        else
+        {
+            return false;
         }
     }
 
-    m_moveHistory.push_back(record);
-
-    if (willContinueCapture)
+    if (m_multiCaptureRow == -1)
     {
-        return true;
-    }
-
-    m_multiCaptureRow = -1;
-    m_multiCaptureCol = -1;
-
-    if (GetValidMoves().empty()) 
-    {
-        m_winner = m_currentPlayer == 1 ? Winner::FirstPlayer : Winner::SecondPlayer;
-    }
-
-    m_currentPlayer = 3 - m_currentPlayer;
-    return true;
-}
-
-
-bool Checkers::HasFurtherCaptures(int r, int c, int piece) const 
-{
-    int dir = (piece == 1 || piece == 3) ? -1 : 1;
-    std::vector<std::pair<int, int>> directions = (piece == 3 || piece == 4) ?
-        std::vector<std::pair<int, int>>{{1, 1}, { 1,-1 }, { -1,1 }, { -1,-1 }} :
-        std::vector<std::pair<int, int>>{ {dir,1}, {dir,-1}, {-dir,1}, {-dir,-1} };
-
-    for (const auto& dir : directions) 
-    {
-        int dr = dir.first;
-        int dc = dir.second;
-        int mr = r + dr, mc = c + dc;
-        int tr = r + 2 * dr, tc = c + 2 * dc;
-
-        if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8 && m_board[tr][tc] == 0) 
+        auto allMoves = GetValidMoves();
+        bool existsCapture = std::any_of(allMoves.begin(), allMoves.end(), [&](int mv) {
+            return IsMoveCapture(mv);
+        });
+        if (existsCapture && !isCapture)
         {
-            if (mr >= 0 && mr < 8 && mc >= 0 && mc < 8) 
+            return false;
+        }
+    }
+
+    MoveRecord rec{ moveCode, capR, capC, capPiece,
+                    m_multiCaptureRow, m_multiCaptureCol,
+                    m_board, m_currentPlayer, m_winner };
+    m_moveHistory.push_back(rec);
+
+    m_board[fr][fc] = 0;
+    m_board[tr][tc] = piece;
+    if (isCapture)
+    {
+        m_board[capR][capC] = 0;
+    }
+
+    if ((m_currentPlayer == 1 && tr == 0 && piece == 1) ||
+        (m_currentPlayer == 2 && tr == 7 && piece == 2))
+    {
+        m_board[tr][tc] += 2;
+    }
+
+    bool more = false;
+    if (isCapture)
+    {
+        int saveRow = m_multiCaptureRow, saveCol = m_multiCaptureCol;
+        m_multiCaptureRow = tr; m_multiCaptureCol = tc;
+        auto next = GetValidMoves();
+        m_multiCaptureRow = saveRow; m_multiCaptureCol = saveCol;
+        more = !next.empty();
+    }
+
+    if (more)
+    {
+        m_multiCaptureRow = tr;
+        m_multiCaptureCol = tc;
+    }
+    else
+    {
+        m_multiCaptureRow = m_multiCaptureCol = -1;
+        m_currentPlayer = 3 - m_currentPlayer;
+
+        bool oppHasPiece = false;
+        for (auto& row : m_board)
+        {
+            for (int p : row)
             {
-                int mid = m_board[mr][mc];
-                if (mid != 0 && (mid % 2 != piece % 2))
+                if (p != 0 && ((p % 2) == (m_currentPlayer % 2)))
                 {
-                    return true;
+                    oppHasPiece = true;
                 }
             }
         }
+
+        bool oppHasMoves = !GetValidMoves().empty();
+
+        if (!oppHasPiece || !oppHasMoves)
+        {
+            m_winner = (m_currentPlayer == 1 ? Winner::FirstPlayer : Winner::SecondPlayer);
+        }
     }
 
+    return true;
+}
+
+bool Checkers::IsMoveCapture(int move) 
+{
+    int from = move / 100;
+    int to = move % 100;
+    int fr = from / 8, fc = from % 8;
+    int tr = to / 8, tc = to % 8;
+    int dr = (tr - fr) > 0 ? 1 : -1;
+    int dc = (tc - fc) > 0 ? 1 : -1;
+    int r = fr + dr, c = fc + dc;
+    while (r != tr && c != tc)
+    {
+        if (m_board[r][c] != 0 && (m_board[r][c] % 2) != (m_board[fr][fc] % 2))
+        {
+            return true;
+        }
+        else if (m_board[r][c] != 0)
+        {
+            break;
+        }
+        r += dr;
+        c += dc;
+    }
     return false;
 }
+
 
 bool Checkers::UnMakeMove() 
 {
@@ -366,112 +394,194 @@ bool Checkers::UnMakeMove()
     return true;
 }
 
-
-std::vector<int> Checkers::GetValidMoves() const 
+std::vector<int> Checkers::GetValidMoves() const
 {
-    std::vector<int> moves;
-    std::vector<int> captureMoves;
-    int dir = (m_currentPlayer == 1 ? -1 : 1);
+    std::vector<int> moves, caps;
+    int forwardDir = (m_currentPlayer == 1 ? -1 : 1);
 
-    if (m_multiCaptureRow != -1) 
+    auto trySlide = [&](int fr, int fc, int dr, int dc) 
     {
-        int fr = m_multiCaptureRow;
-        int fc = m_multiCaptureCol;
-        int piece = m_board[fr][fc];
-        std::vector<std::pair<int, int>> directions;
-
-        if (piece == 3 || piece == 4) 
+        for (int s = 1;; ++s) 
         {
-            directions = { {1, 1}, {1, -1}, {-1, 1}, {-1, -1} };
+            int tr = fr + s * dr, tc = fc + s * dc;
+            if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8)
+            {
+                break;
+            }
+            if (m_board[tr][tc] != 0)
+            {
+                break;
+            }
+            moves.push_back((fr * 8 + fc) * 100 + (tr * 8 + tc));
         }
-        else 
-        { 
-            directions = { {dir, 1}, {dir, -1}, {-dir, 1}, {-dir, -1} };
-        }
+    };
 
-        for (const auto& dir : directions) 
+    if (m_multiCaptureRow != -1)
+    {
+        int fr = m_multiCaptureRow, fc = m_multiCaptureCol;
+        int piece = m_board[fr][fc];
+        bool king = (piece == 3 || piece == 4);
+        std::vector<std::pair<int, int>> dirs = { {1,1}, {1,-1}, {-1,1}, {-1,-1} };
+
+        for (const auto& dir : dirs)
         {
             int dr = dir.first, dc = dir.second;
-            int mr = fr + dr, mc = fc + dc;
-            int cr = fr + 2 * dr, cc = fc + 2 * dc;
-
-            if (cr >= 0 && cr < 8 && cc >= 0 && cc < 8 &&
-                m_board[cr][cc] == 0 &&
-                m_board[mr][mc] != 0 &&
-                (m_board[mr][mc] % 2 != piece % 2)) 
+            if (!king)
             {
-                int move = (fr * 8 + fc) * 100 + (cr * 8 + cc);
-                captureMoves.push_back(move);
+                int mr = fr + dr, mc = fc + dc;
+                int tr = fr + 2 * dr, tc = fc + 2 * dc;
+                if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8)
+                {
+                    continue;
+                }
+                int mid = m_board[mr][mc];
+                if (m_board[tr][tc] == 0 && mid != 0 && (mid % 2) != (piece % 2))
+                {
+                    caps.push_back((fr * 8 + fc) * 100 + (tr * 8 + tc));
+                }
             }
-        }
-
-        return captureMoves;
-    }
-
-    for (int r = 0; r < 8; ++r)
-    {
-        for (int c = 0; c < 8; ++c) 
-        {
-            int piece = m_board[r][c];
-            if ((m_currentPlayer == 1 && (piece == 1 || piece == 3)) ||
-                (m_currentPlayer == 2 && (piece == 2 || piece == 4))) 
+            else
             {
-
-                std::vector<std::pair<int, int>> directions;
-                if (piece == 3 || piece == 4) 
+                for (int s = 1;; ++s)
                 {
-                    directions = { {1, 1}, {1, -1}, {-1, 1}, {-1, -1} };
-                }
-                else 
-                {
-                    directions = { {dir, 1}, {dir, -1}, {-dir, 1}, {-dir, -1} };
-                }
-
-                for (const auto& dir : directions) 
-                {
-                    int dr = dir.first, dc = dir.second;
-                    int tr = r + dr, tc = c + dc;
-
-                    if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8 && m_board[tr][tc] == 0) 
+                    int r = fr + s * dr, c = fc + s * dc;
+                    if (r < 0 || r >= 8 || c < 0 || c >= 8)
                     {
-                        int move = (r * 8 + c) * 100 + (tr * 8 + tc);
-                        moves.push_back(move);
+                        break;
+                    }
+                    if (m_board[r][c] == 0)
+                    {
+                        continue;
+                    }
+                    if ((m_board[r][c] % 2) == (piece % 2))
+                    {
+                        break;
                     }
 
-                    int cr = r + 2 * dr, cc = c + 2 * dc;
-                    int mr = r + dr, mc = c + dc;
-
-                    if (cr >= 0 && cr < 8 && cc >= 0 && cc < 8 &&
-                        m_board[cr][cc] == 0 &&
-                        m_board[mr][mc] != 0 &&
-                        (m_board[mr][mc] % 2 != piece % 2)) 
+                    for (int t = 1;; ++t)
                     {
-                        int move = (r * 8 + c) * 100 + (cr * 8 + cc);
-                        captureMoves.push_back(move);
+                        int tr = r + t * dr, tc = c + t * dc;
+                        if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8)
+                        {
+                            break;
+                        }
+                        if (m_board[tr][tc] != 0)
+                        {
+                            break;
+                        }
+                        caps.push_back((fr * 8 + fc) * 100 + (tr * 8 + tc));
                     }
+                    break;
                 }
             }
         }
+        return caps;
     }
 
-    return !captureMoves.empty() ? captureMoves : moves;
-}
-
-
-bool Checkers::AnyCapturesAvailable() const 
-{
-    auto moves = GetValidMoves();
-    for (int m : moves) 
+    for (int r = 0; r < 8; ++r) for (int c = 0; c < 8; ++c)
     {
-        int from = m / 100, to = m % 100;
-        int fr = from / 8, fc = from % 8;
-        int tr = to / 8, tc = to % 8;
-        if (std::abs(fr - tr) == 2)
+        int piece = m_board[r][c];
+        if (piece == 0 || ((piece % 2) != (m_currentPlayer % 2)))
         {
-            return true;
+            continue;
+        }
+
+        bool king = (piece == 3 || piece == 4);
+        std::vector<std::pair<int, int>> dirs = king ?
+            std::vector<std::pair<int, int>>{{1, 1}, { 1,-1 }, { -1,1 }, { -1,-1 }} :
+            std::vector<std::pair<int, int>>{ {forwardDir,1},{forwardDir,-1},{-forwardDir,1},{-forwardDir,-1} };
+
+        for (const auto& dir : dirs)
+        {
+            int dr = dir.first, dc = dir.second;
+            if (!king)
+            {
+                int mr = r + dr, mc = c + dc, tr = r + 2 * dr, tc = c + 2 * dc;
+                if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8)
+                {
+                    continue;
+                }
+                int mid = m_board[mr][mc];
+                if (m_board[tr][tc] == 0 && mid != 0 && (mid % 2) != (piece % 2))
+                {
+                    caps.push_back((r * 8 + c) * 100 + (tr * 8 + tc));
+                }
+            }
+            else
+            {
+                for (int s = 1;; ++s)
+                {
+                    int cr = r + s * dr, cc = c + s * dc;
+                    if (cr < 0 || cr >= 8 || cc < 0 || cc >= 8)
+                    {
+                        break;
+                    }
+                    if (m_board[cr][cc] == 0)
+                    {
+                        continue;
+                    }
+                    if ((m_board[cr][cc] % 2) == (piece % 2))
+                    {
+                        break;
+                    }
+
+                    for (int t = 1;; ++t)
+                    {
+                        int tr = cr + t * dr, tc = cc + t * dc;
+                        if (tr < 0 || tr >= 8 || tc < 0 || tc >= 8)
+                        {
+                            break;
+                        }
+                        if (m_board[tr][tc] != 0)
+                        {
+                            break;
+                        }
+                        caps.push_back((r * 8 + c) * 100 + (tr * 8 + tc));
+                    }
+                    break;
+                }
+            }
         }
     }
-    return false;
+
+    if (!caps.empty())
+    {
+        return caps;
+    }
+
+    for (int r = 0; r < 8; ++r) for (int c = 0; c < 8; ++c)
+    {
+        int piece = m_board[r][c];
+        if (piece == 0 || ((piece % 2) != (m_currentPlayer % 2)))
+        {
+            continue;
+        }
+
+        bool king = (piece == 3 || piece == 4);
+        if (!king)
+        {
+            int tr = r + forwardDir, tc = c + 1;
+            if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8 && m_board[tr][tc] == 0)
+            {
+                moves.push_back((r * 8 + c) * 100 + (tr * 8 + tc));
+            }
+            tc = c - 1;
+            if (tr >= 0 && tr < 8 && tc >= 0 && tc < 8 && m_board[tr][tc] == 0)
+            {
+                moves.push_back((r * 8 + c) * 100 + (tr * 8 + tc));
+            }
+        }
+        else
+        {
+            std::vector<std::pair<int, int>> dirs = { {1,1},{1,-1},{-1,1},{-1,-1} };
+            for (const auto& dir : dirs)
+            {
+                trySlide(r, c, dir.first, dir.second);
+            }
+        }
+    }
+
+    return moves;
 }
 
 std::vector<float> Checkers::GetBoardState() const 

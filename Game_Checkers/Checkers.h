@@ -54,6 +54,5 @@ private:
     Winner m_winner;
     std::vector<MoveRecord> m_moveHistory;
 
-    bool AnyCapturesAvailable() const;
-    bool HasFurtherCaptures(int r, int c, int piece) const;
+    bool IsMoveCapture(int move);
 };

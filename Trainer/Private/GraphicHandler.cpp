@@ -47,7 +47,11 @@ void GraphicalInterface::HandleClick(int x, int y)
 	m_currentGame->PrintBoard();
 	for (auto& pos : m_currentGame->GetValidMoves())
 	{
-		std::cout << pos << "\n";
+		int from =pos / 100;
+		int to = pos % 100;
+		int fr = from / 8, fc = from % 8;
+		int tr = to / 8, tc = to % 8;
+		std::cout << fr << " " << fc << ", " << tr << " " << tc << "\n";
 	}
 	SubmitEntitiesFromGrid(m_currentGame->GetSpriteGrid());
 }
