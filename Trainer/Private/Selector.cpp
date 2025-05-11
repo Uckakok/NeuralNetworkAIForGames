@@ -237,6 +237,11 @@ void GameSelector::PlayAgainstAI(std::unique_ptr<IGame> game)
     try
     {
         NeuralNetwork loaded = NeuralNetwork::Load(name);
+        if (!loaded.ClampedEvaluationPossible())
+        {
+            std::cout << "Bounds aren't set for this neural network! Fix in trainer mode!\n";
+            return;
+        }
         std::cout << "Loaded network.\n";
 
         int userPlayer = 0;

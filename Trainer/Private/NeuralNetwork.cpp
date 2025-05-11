@@ -73,6 +73,7 @@ void NeuralNetwork::SetKnownEvaluationBounds(float minEval, float maxEval)
 {
     m_minEvalKnown = minEval;
     m_maxEvalKnown = maxEval;
+    m_clampedEvaluationPossible = true;
 }
 
 float NeuralNetwork::GetClampedEvaluation(const std::vector<float>& input) const
@@ -131,6 +132,8 @@ NeuralNetwork NeuralNetwork::Mutate(int weightRate, int biasRate) const
         *allBiases[i] += noiseDist(gen);
     }
 
+    copy.m_clampedEvaluationPossible = false;
+
     return copy;
 }
 
@@ -172,6 +175,7 @@ void NeuralNetwork::Save(std::string gameName) const
     }
 
     out << m_minEvalKnown << ' ' << m_maxEvalKnown << '\n';
+    out << m_clampedEvaluationPossible << '\n';
 }
 
 NeuralNetwork NeuralNetwork::Load(const std::string& filename)
@@ -210,6 +214,7 @@ NeuralNetwork NeuralNetwork::Load(const std::string& filename)
     }
 
     in >> nn.m_minEvalKnown >> nn.m_maxEvalKnown;
+    in >> nn.m_clampedEvaluationPossible;
 
     return nn;
 }
@@ -372,6 +377,11 @@ void NeuralNetwork::TrainSingle(const std::vector<float>& input, float target, f
             }
         }
     }
+}
+
+bool NeuralNetwork::ClampedEvaluationPossible()
+{
+    return m_clampedEvaluationPossible;
 }
 
 
