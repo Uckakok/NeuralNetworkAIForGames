@@ -9,12 +9,14 @@
 #include <windows.h>
 #include <numeric>
 #include <algorithm>
+#include "Selector.h"
 #include <unordered_set>
 
 Trainer::Trainer(std::unique_ptr<IGame> baseGame)
     : m_baseGame(std::move(baseGame)), m_championImprovements(0)
 {
-    for (int i = 0; i < m_populationSize; ++i) {
+    for (int i = 0; i < m_populationSize; ++i) 
+    {
         m_population.emplace_back(Player{ std::make_unique<NeuralNetwork>(
             this->m_baseGame->GetBoardState().size(),
             std::vector<int>{42, 42, 21, 8}
@@ -26,7 +28,8 @@ Trainer::Trainer(std::unique_ptr<IGame> baseGame)
 
 void Trainer::Run() 
 {
-    while (true) {
+    while (true) 
+    {
         std::cout << "\n=== Neural Network Trainer ===\n";
         std::cout << "1. Play against AI\n";
         std::cout << "2. Train N iterations\n";
@@ -43,29 +46,63 @@ void Trainer::Run()
         int choice;
         std::cin >> choice;
 
-        if (std::cin.fail()) {
+        if (std::cin.fail()) 
+        {
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             continue;
         }
 
-        switch (choice) {
+        switch (choice)
+        {
         case 1:
-            PlayAgainstAI();
+        {
+            if (GetChampion() == nullptr)
+            {
+                std::cout << "No champion to play against.\n";
+                break;
+            }
+            if (!GetChampion()->ClampedEvaluationPossible())
+            {
+                std::cout << "Bounds aren't set for this neural network!\n";
+                break;
+            }
+
+            int userPlayer = 0;
+            while (userPlayer != 1 && userPlayer != 2)
+            {
+                std::cout << "Play as Player 1 or 2? ";
+                std::cin >> userPlayer;
+
+                if (std::cin.fail() || (userPlayer != 1 && userPlayer != 2))
+                {
+                    std::cin.clear();
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                    std::cout << "Invalid input. Enter 1 or 2.\n";
+                }
+            }
+
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+            GameSelector::PlayGameLoop(std::move(m_baseGame), GetChampion(), userPlayer);
             break;
+        }
         case 2: {
             std::cout << "Enter number of iterations: ";
             int iterations;
             std::cin >> iterations;
-            if (!std::cin.fail() && iterations > 0) {
+            if (!std::cin.fail() && iterations > 0) 
+            {
                 TrainIterations(iterations);
             }
-            else {
+            else 
+            {
                 std::cout << "Invalid number.\n";
             }
             break;
         }
-        case 3: {
+        case 3: 
+        {
             NeuralNetwork* ai = GetChampion();
             if (ai == nullptr)
             {
@@ -83,7 +120,8 @@ void Trainer::Run()
             std::cout << "Train against random agent only. Enter iterations: ";
             int randGens;
             std::cin >> randGens;
-            if (!std::cin.fail() && randGens > 0) {
+            if (!std::cin.fail() && randGens > 0) 
+            {
                 TrainIterationsAgainstRandom(randGens);
             }
             break;
@@ -94,24 +132,30 @@ void Trainer::Run()
             std::cout << "Enter number of iterations: ";
             int gdIters;
             std::cin >> gdIters;
-            if (!std::cin.fail() && gdIters > 0) {
+            if (!std::cin.fail() && gdIters > 0)
+            {
                 TrainIterationsGD(gdIters);
             }
-            else {
+            else
+            {
                 std::cout << "Invalid number.\n";
             }
             break;
         }
-        case 8: {
+        case 8:
+        {
             ListSaves(m_baseGame.get());
             std::cout << "Enter name of save to load: ";
             std::string name;
             std::cin >> name;
-            if (!std::cin.fail()) {
-                try {
+            if (!std::cin.fail()) 
+            {
+                try
+                {
                     NeuralNetwork loaded = NeuralNetwork::Load(name);
                     m_population.clear();
-                    for (int i = 0; i < m_populationSize; ++i) {
+                    for (int i = 0; i < m_populationSize; ++i) 
+                    {
                         m_population.emplace_back(Player{
                             std::make_unique<NeuralNetwork>(loaded), 0
                             });
@@ -119,26 +163,31 @@ void Trainer::Run()
                     m_championId = m_population[0].NN.get()->Id;
                     std::cout << "Loaded network and updated population.\n";
                 }
-                catch (...) {
+                catch (...) 
+                {
                     std::cout << "Failed to load network: " << name << "\n";
                 }
             }
-            else {
+            else 
+            {
                 std::cout << "Failed to read name.\n";
             }
             break;
         }
-        case 9: {
+        case 9: 
+        {
             std::cout << "Enter number of random games to fuzz: ";
             int n;
             std::cin >> n;
-            if (std::cin.fail() || n <= 0) {
+            if (std::cin.fail() || n <= 0) 
+            {
                 std::cout << "Invalid number.\n";
                 break;
             }
 
             NeuralNetwork* nn = GetChampion();
-            if (nn == nullptr) {
+            if (nn == nullptr) 
+            {
                 std::cout << "No champion available.\n";
                 break;
             }
@@ -166,12 +215,17 @@ void Trainer::FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* netwo
     outMinEval = std::numeric_limits<float>::max();
     outMaxEval = std::numeric_limits<float>::lowest();
 
-    for (int i = 0; i < nGames; ++i) {
+    for (int i = 0; i < nGames; ++i) 
+    {
         auto game = baseGame.Clone();
 
-        while (game->GetWinner() == IGame::Winner::OnGoing) {
+        while (game->GetWinner() == IGame::Winner::OnGoing) 
+        {
             auto valid = game->GetValidMoves();
-            if (valid.empty()) break;
+            if (valid.empty())
+            {
+                break;
+            }
 
             std::uniform_int_distribution<> randMove(0, static_cast<int>(valid.size()) - 1);
             int move = valid[randMove(gen)];
@@ -197,19 +251,23 @@ void Trainer::ListSaves(IGame* game)
     WIN32_FIND_DATAA findData;
     HANDLE hFind = FindFirstFileA("./*", &findData);
 
-    if (hFind == INVALID_HANDLE_VALUE) {
+    if (hFind == INVALID_HANDLE_VALUE) 
+    {
         std::cerr << "Error opening directory.\n";
         return;
     }
 
     std::vector<std::string> matchedFiles;
 
-    do {
+    do 
+    {
         std::string fileName = findData.cFileName;
-        if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+        if (!(findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) 
+        {
             if (fileName.size() >= prefix.size() + suffix.size() &&
                 fileName.substr(0, prefix.size()) == prefix &&
-                fileName.substr(fileName.size() - suffix.size()) == suffix) {
+                fileName.substr(fileName.size() - suffix.size()) == suffix) 
+            {
                 matchedFiles.push_back(fileName);
             }
         }
@@ -217,12 +275,15 @@ void Trainer::ListSaves(IGame* game)
 
     FindClose(hFind);
 
-    if (matchedFiles.empty()) {
+    if (matchedFiles.empty())
+    {
         std::cout << "No saved networks found.\n";
     }
-    else {
+    else 
+    {
         std::cout << "Saved networks:\n";
-        for (const auto& file : matchedFiles) {
+        for (const auto& file : matchedFiles) 
+        {
             std::cout << "  - " << file << "\n";
         }
     }
@@ -230,7 +291,8 @@ void Trainer::ListSaves(IGame* game)
 
 void Trainer::ChangeParametersMenu()
 {
-    while (true) {
+    while (true)
+    {
         std::cout << "\n=== Neural Network Trainer ===\n";
         std::cout << "1. Mutation rate (current: " << m_mutationRate << ")\n";
         std::cout << "2. Population size (current: " << m_populationSize << ")\n";
@@ -242,35 +304,45 @@ void Trainer::ChangeParametersMenu()
         int choice;
         std::cin >> choice;
 
-        if (std::cin.fail()) {
+        if (std::cin.fail()) 
+        {
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             continue;
         }
 
-        switch (choice) {
-        case 1: {
+        switch (choice) 
+        {
+        case 1: 
+        {
             std::cout << "Enter new mutation rate (0 or positive int): ";
             int newMutationRate;
             std::cin >> newMutationRate;
-            if (!std::cin.fail() && newMutationRate >= 0) {
+            if (!std::cin.fail() && newMutationRate >= 0) 
+            {
                 m_mutationRate = newMutationRate;
             }
-            else {
+            else 
+            {
                 std::cout << "Invalid number.\n";
             }
             break;
         }
-        case 2: {
+        case 2: 
+        {
             std::cout << "Enter new population size (even number >= 2): ";
             int newSize;
             std::cin >> newSize;
-            if (!std::cin.fail() && newSize >= 2 && newSize % 2 == 0) {
-                if (newSize < m_population.size()) {
+            if (!std::cin.fail() && newSize >= 2 && newSize % 2 == 0) 
+            {
+                if (newSize < m_population.size()) 
+                {
                     m_population.resize(newSize);
                 }
-                else {
-                    while (m_population.size() < newSize) {
+                else 
+                {
+                    while (m_population.size() < newSize) 
+                    {
                         m_population.emplace_back(Player{ std::make_unique<NeuralNetwork>(
                             this->m_baseGame->GetBoardState().size(),
                             std::vector<int>{42, 42, 21, 8}
@@ -280,31 +352,38 @@ void Trainer::ChangeParametersMenu()
                 m_populationSize = newSize;
                 std::cout << "Population resized to " << newSize << ".\n";
             }
-            else {
+            else 
+            {
                 std::cout << "Invalid size.\n";
             }
             break;
         }
-        case 3: {
+        case 3: 
+        {
             std::cout << "Enter new matches per iteration (0 or more): ";
             int newMatches;
             std::cin >> newMatches;
-            if (!std::cin.fail() && newMatches >= 0) {
+            if (!std::cin.fail() && newMatches >= 0) 
+            {
                 m_matchesPerIteration = newMatches;
             }
-            else {
+            else 
+            {
                 std::cout << "Invalid number.\n";
             }
             break;
         }
-        case 4: {
+        case 4: 
+        {
             std::cout << "Enter new learning rate (more than 0): ";
             float newRate;
             std::cin >> newRate;
-            if (!std::cin.fail() && newRate > 0) {
+            if (!std::cin.fail() && newRate > 0) 
+            {
                 m_learningRate = newRate;
             }
-            else {
+            else 
+            {
                 std::cout << "Invalid number.\n";
             }
             break;
@@ -318,23 +397,26 @@ void Trainer::ChangeParametersMenu()
 }
 
 
-void Trainer::TrainIterations(int generations) {
+void Trainer::TrainIterations(int generations) 
+{
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    for (int genIndex = 0; genIndex < generations; ++genIndex) {
-        // Reset scores
-        for (auto& player : m_population) {
+    for (int genIndex = 0; genIndex < generations; ++genIndex) 
+    {
+        for (auto& player : m_population) 
+        {
             player.Wins = 0;
             player.Losses = 0;
         }
-
-        // Play matchesPerIteration matches for each player
-        for (int i = 0; i < m_populationSize; ++i) {
-            for (int m = 0; m < m_matchesPerIteration; ++m) {
+        for (int i = 0; i < m_populationSize; ++i) 
+        {
+            for (int m = 0; m < m_matchesPerIteration; ++m)
+            {
                 std::uniform_int_distribution<> dist(0, m_populationSize - 1);
                 int opponentIdx;
-                do {
+                do 
+                {
                     opponentIdx = dist(gen);
                 } while (opponentIdx == i);
 
@@ -346,23 +428,26 @@ void Trainer::TrainIterations(int generations) {
                     ? PlayMatch(netB, netA)
                     : PlayMatch(netA, netB);
 
-                if (winner == IGame::Winner::Draw) {
-                    // No score change for draws (or add 0.5 win/loss if desired)
+                if (winner == IGame::Winner::Draw) 
+                {
+                    
                 }
                 else if ((iIsSecond && winner == IGame::Winner::SecondPlayer) ||
-                    (!iIsSecond && winner == IGame::Winner::FirstPlayer)) {
+                    (!iIsSecond && winner == IGame::Winner::FirstPlayer)) 
+                {
                     m_population[i].Wins++;
                     m_population[opponentIdx].Losses++;
                 }
-                else {
+                else 
+                {
                     m_population[i].Losses++;
                     m_population[opponentIdx].Wins++;
                 }
             }
         }
 
-        // Compute win ratios and sort
-        std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b) {
+        std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b) 
+        {
             float aTotal = a.Wins + a.Losses;
             float bTotal = b.Wins + b.Losses;
             float aRatio = aTotal > 0 ? static_cast<float>(a.Wins) / aTotal : 0.0f;
@@ -370,7 +455,6 @@ void Trainer::TrainIterations(int generations) {
             return aRatio > bRatio;
         });
 
-        // Log each player's stats
         /*
         std::cout << "Generation " << genIndex << " summary:\n";
         for (int i = 0; i < populationSize; ++i) {
@@ -384,11 +468,11 @@ void Trainer::TrainIterations(int generations) {
                 << " | Win Ratio: " << ratio << "\n";
         }*/
 
-        // Update champion
         float bestTotal = m_population[0].Wins + m_population[0].Losses;
         float bestRatio = bestTotal > 0 ? static_cast<float>(m_population[0].Wins) / bestTotal : 0.0f;
 
-        if (m_championId != m_population[0].NN->Id) {
+        if (m_championId != m_population[0].NN->Id) 
+        {
             m_championId = m_population[0].NN->Id;
             ++m_championImprovements;
             std::cout << "Generation " << genIndex
@@ -398,16 +482,17 @@ void Trainer::TrainIterations(int generations) {
                 << "\n";
         }
 
-        // Select top half, clone with mutation to refill population
         int survivors = m_populationSize / 2;
         std::vector<Player> nextGen;
 
-        for (int i = 0; i < survivors; ++i) {
+        for (int i = 0; i < survivors; ++i)
+        {
             nextGen.push_back(Player{ std::make_unique<NeuralNetwork>(*m_population[i].NN), 0, 0 });
         }
 
         std::uniform_int_distribution<> survivorDist(0, survivors - 1);
-        while (nextGen.size() < m_populationSize) {
+        while (nextGen.size() < m_populationSize) 
+        {
             int parentIdx = survivorDist(gen);
             auto childNN = std::make_unique<NeuralNetwork>(
                 nextGen[parentIdx].NN->Mutate(m_mutationRate, m_mutationRate));
@@ -427,97 +512,49 @@ void Trainer::TrainIterations(int generations) {
 
 NeuralNetwork* Trainer::GetChampion()
 {
-    for (const auto& player : m_population) {
-        if (player.NN->Id == m_championId) {
+    for (const auto& player : m_population) 
+    {
+        if (player.NN->Id == m_championId) 
+        {
             return player.NN.get();
         }
     }
     return nullptr;
 }
 
-void Trainer::PlayAgainstAI() {
-    auto game = m_baseGame->Clone();
 
-    // Let user choose which player they want to be
-    int userPlayer = 0;
-    while (userPlayer != 1 && userPlayer != 2) {
-        std::cout << "Do you want to play as Player 1 or Player 2? (Enter 1 or 2): ";
-        std::cin >> userPlayer;
-
-        if (std::cin.fail() || (userPlayer != 1 && userPlayer != 2)) {
-            std::cin.clear();
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            std::cout << "Invalid input. Please enter 1 or 2.\n";
-        }
-    }
-
-    NeuralNetwork* ai = GetChampion();
-    if (ai == nullptr) {
-        std::cerr << "Error: Champion with ID " << m_championId << " not found in population.\n";
-        return;
-    }
-
-    while (game->GetWinner() == IGame::Winner::OnGoing) {
-        game->PrintBoard();
-        int player = game->GetCurrentPlayer();
-
-        if (player == userPlayer) {
-            int move;
-            std::cout << "Enter move: ";
-            std::cin >> move;
-
-            if (!game->MakeMove(move)) {
-                std::cout << "Invalid move.\n";
-            }
-        }
-        else {
-            //int bestMove = ChooseBestMove(*game, ai);
-            int bestMove = MonteCarlo::MonteCarloTreeSearch(*game, 3.0f, GetChampion());
-            game->MakeMove(bestMove);
-            std::cout << "AI chooses: " << bestMove << "\n";
-        }
-    }
-
-    game->PrintBoard();
-    int winner = game->GetWinner();
-    if (winner == IGame::Draw) {
-        std::cout << "Draw!\n";
-    }
-    else {
-        std::cout << "Player " << winner << " wins!\n";
-    }
-}
-
-
-
-void Trainer::TrainIterationsAgainstRandom(int generations) {
+void Trainer::TrainIterationsAgainstRandom(int generations) 
+{
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    for (int genIndex = 0; genIndex < generations; ++genIndex) {
-        // Reset scores
-        for (auto& player : m_population) {
+    for (int genIndex = 0; genIndex < generations; ++genIndex) 
+    {
+        for (auto& player : m_population) 
+        {
             player.Wins = 0;
             player.Losses = 0;
         }
 
-        // Play matches against random opponents
-        for (auto& player : m_population) {
-            for (int m = 0; m < m_matchesPerIteration; ++m) {
+        for (auto& player : m_population) 
+        {
+            for (int m = 0; m < m_matchesPerIteration; ++m) 
+            {
                 auto game = m_baseGame->Clone();
                 std::uniform_int_distribution<> coin(0, 1);
                 bool aiPlaysFirst = coin(gen) == 0;
 
-                //std::cout << "\nNewGame\n\n";
-
-                while (game->GetWinner() == IGame::Winner::OnGoing) {
+                while (game->GetWinner() == IGame::Winner::OnGoing) 
+                {
                     int playerTurn = game->GetCurrentPlayer();
                     int move;
 
-                    if ((playerTurn == 1 && aiPlaysFirst) || (playerTurn == 2 && !aiPlaysFirst)) {
+                    if ((playerTurn == 1 && aiPlaysFirst) || (playerTurn == 2 && !aiPlaysFirst)) 
+                    {
                         move = ChooseBestMove(*game, player.NN.get());
                     }
-                    else {
+                    else 
+                    {
                         auto valid = game->GetValidMoves();
                         std::uniform_int_distribution<> randMove(0, static_cast<int>(valid.size()) - 1);
                         move = valid[randMove(gen)];
@@ -528,17 +565,19 @@ void Trainer::TrainIterationsAgainstRandom(int generations) {
 
                 auto result = game->GetWinner();
                 if ((aiPlaysFirst && result == IGame::Winner::FirstPlayer) ||
-                    (!aiPlaysFirst && result == IGame::Winner::SecondPlayer)) {
+                    (!aiPlaysFirst && result == IGame::Winner::SecondPlayer)) 
+                {
                     ++player.Wins;
                 }
-                else if (result != IGame::Winner::Draw) {
+                else if (result != IGame::Winner::Draw) 
+                {
                     ++player.Losses;
                 }
             }
         }
 
-        // Sort by win ratio
-        std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b) {
+        std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b) 
+        {
             float aTotal = a.Wins + a.Losses;
             float bTotal = b.Wins + b.Losses;
             float aRatio = aTotal > 0 ? static_cast<float>(a.Wins) / aTotal : 0.0f;
@@ -546,16 +585,17 @@ void Trainer::TrainIterationsAgainstRandom(int generations) {
             return aRatio > bRatio;
         });
 
-        // Create next generation
         int survivors = m_populationSize / 2;
         std::vector<Player> nextGen;
 
-        for (int i = 0; i < survivors; ++i) {
+        for (int i = 0; i < survivors; ++i) 
+        {
             nextGen.push_back(Player{ std::make_unique<NeuralNetwork>(*m_population[i].NN), 0, 0 });
         }
 
         std::uniform_int_distribution<> survivorDist(0, survivors - 1);
-        while (nextGen.size() < m_populationSize) {
+        while (nextGen.size() < m_populationSize) 
+        {
             int parentIdx = survivorDist(gen);
             auto childNN = std::make_unique<NeuralNetwork>(
                 nextGen[parentIdx].NN->Mutate(m_mutationRate, m_mutationRate));
@@ -563,17 +603,18 @@ void Trainer::TrainIterationsAgainstRandom(int generations) {
             nextGen.push_back(Player{ std::move(childNN), 0, 0 });
         }
 
-        // Check if champion is still alive
         bool championAlive = false;
-        for (const auto& player : nextGen) {
-            if (player.NN->Id == m_championId) {
+        for (const auto& player : nextGen) 
+        {
+            if (player.NN->Id == m_championId) 
+            {
                 championAlive = true;
                 break;
             }
         }
 
-        // If not, declare a new champion
-        if (!championAlive) {
+        if (!championAlive)
+        {
             m_championId = nextGen[0].NN->Id;
             ++m_championImprovements;
 
@@ -594,10 +635,12 @@ void Trainer::TrainIterationsAgainstRandom(int generations) {
 }
 
 
-IGame::Winner Trainer::PlayMatch(NeuralNetwork* nn1, NeuralNetwork* nn2) {
+IGame::Winner Trainer::PlayMatch(NeuralNetwork* nn1, NeuralNetwork* nn2) 
+{
     auto game = m_baseGame->Clone();
 
-    while (game->GetWinner() == IGame::Winner::OnGoing) {
+    while (game->GetWinner() == IGame::Winner::OnGoing) 
+    {
         NeuralNetwork* currentNN = game->GetCurrentPlayer() == 1 ? nn1 : nn2;
         int move = ChooseBestMove(*game, currentNN);
         game->MakeMove(move);
@@ -606,7 +649,8 @@ IGame::Winner Trainer::PlayMatch(NeuralNetwork* nn1, NeuralNetwork* nn2) {
     return game->GetWinner();
 }
 
-int Trainer::ChooseBestMove(const IGame& game, const NeuralNetwork* network) {
+int Trainer::ChooseBestMove(const IGame& game, const NeuralNetwork* network) 
+{
     std::vector<int> validMoves = game.GetValidMoves();
     int currentPlayer = game.GetCurrentPlayer();
 
@@ -614,7 +658,8 @@ int Trainer::ChooseBestMove(const IGame& game, const NeuralNetwork* network) {
     int bestMove = -1;
 
 
-    for (int move : validMoves) {
+    for (int move : validMoves) 
+    {
         auto simGame = CloneGameWithMove(game, move);
         float score = network->Evaluate(simGame->GetBoardState());
 
@@ -622,56 +667,50 @@ int Trainer::ChooseBestMove(const IGame& game, const NeuralNetwork* network) {
         //std::cout << "Current player: " << simGame->GetCurrentPlayer() << "\n";
         //simGame->PrintBoard();
 
-        if (currentPlayer != 1) {
-            if (score > bestScore) {
+        if (currentPlayer != 1) 
+        {
+            if (score > bestScore) 
+            {
                 bestScore = score;
                 bestMove = move;
             }
         }
-        else {
-            if (score < bestScore) {
+        else 
+        {
+            if (score < bestScore) 
+            {
                 bestScore = score;
                 bestMove = move;
             }
         }
     }
 
-    if (bestMove == -1 && !validMoves.empty()) {
+    if (bestMove == -1 && !validMoves.empty()) 
+    {
         game.PrintBoard();
         std::cerr << "[WARNING] No best move found. Choosing fallback.\n";
         bestMove = validMoves[0];
-        for (int move : validMoves) {
-            auto simGame = CloneGameWithMove(game, move);
-            float score = network->Evaluate(simGame->GetBoardState());
-
-            if (currentPlayer == 1) {
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestMove = move;
-                }
-            }
-            else {
-                if (score < bestScore) {
-                    bestScore = score;
-                    bestMove = move;
-                }
-            }
-        }
     }
 
     return bestMove;
 }
 
-void FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int nGames, std::mt19937& gen, float& outMinEval, float& outMaxEval) {
+void FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int nGames, std::mt19937& gen, float& outMinEval, float& outMaxEval) 
+{
     outMinEval = std::numeric_limits<float>::max();
     outMaxEval = std::numeric_limits<float>::lowest();
 
-    for (int i = 0; i < nGames; ++i) {
+    for (int i = 0; i < nGames; ++i) 
+    {
         auto game = baseGame.Clone();
 
-        while (game->GetWinner() == IGame::Winner::OnGoing) {
+        while (game->GetWinner() == IGame::Winner::OnGoing) 
+        {
             auto valid = game->GetValidMoves();
-            if (valid.empty()) break;
+            if (valid.empty())
+            {
+                break;
+            }
 
             std::uniform_int_distribution<> randMove(0, static_cast<int>(valid.size()) - 1);
             int move = valid[randMove(gen)];
@@ -680,8 +719,14 @@ void FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int n
 
             float eval = network->Evaluate(game->GetBoardState());
 
-            if (eval < outMinEval) outMinEval = eval;
-            if (eval > outMaxEval) outMaxEval = eval;
+            if (eval < outMinEval)
+            {
+                outMinEval = eval;
+            }
+            if (eval > outMaxEval)
+            {
+                outMaxEval = eval;
+            }
         }
     }
 
@@ -692,7 +737,8 @@ IGame::Winner Trainer::PlayMatchGD(NeuralNetwork* nn1, NeuralNetwork* nn2) {
     auto game = m_baseGame->Clone();
     std::vector<Step> history1, history2;
 
-    while (game->GetWinner() == IGame::Winner::OnGoing) {
+    while (game->GetWinner() == IGame::Winner::OnGoing) 
+    {
         NeuralNetwork* currentNN = game->GetCurrentPlayer() == 1 ? nn1 : nn2;
         auto& history = game->GetCurrentPlayer() == 1 ? history1 : history2;
 
@@ -710,10 +756,12 @@ IGame::Winner Trainer::PlayMatchGD(NeuralNetwork* nn1, NeuralNetwork* nn2) {
     return winner;
 }
 
-void Trainer::ApplyRewards(NeuralNetwork* nn, std::vector<Step>& history, float finalReward) {
+void Trainer::ApplyRewards(NeuralNetwork* nn, std::vector<Step>& history, float finalReward) 
+{
     float gamma = 0.9f;
     float value = finalReward;
-    for (int i = history.size() - 1; i >= 0; --i) {
+    for (int i = history.size() - 1; i >= 0; --i) 
+    {
         history[i].TargetValue = value;
         nn->TrainSingle(history[i].BoardState, value, m_learningRate);
         value *= gamma;
@@ -722,9 +770,11 @@ void Trainer::ApplyRewards(NeuralNetwork* nn, std::vector<Step>& history, float 
 
 
 
-void Trainer::TestChampionAgainstRandom(int games) {
+void Trainer::TestChampionAgainstRandom(int games) 
+{
     NeuralNetwork* ai = GetChampion();
-    if (!ai) {
+    if (!ai) 
+    {
         std::cout << "No champion to test.\n";
         return;
     }
@@ -735,18 +785,22 @@ void Trainer::TestChampionAgainstRandom(int games) {
     int firstWins = 0, firstDraws = 0, firstLosses = 0;
     int secondWins = 0, secondDraws = 0, secondLosses = 0;
 
-    for (int i = 0; i < games; ++i) {
+    for (int i = 0; i < games; ++i) 
+    {
         auto game = m_baseGame->Clone();
-        bool aiPlaysFirst = (i < games / 2);  // First half = AI starts, second half = AI second
+        bool aiPlaysFirst = (i < games / 2);
 
-        while (game->GetWinner() == IGame::Winner::OnGoing) {
+        while (game->GetWinner() == IGame::Winner::OnGoing) 
+        {
             int player = game->GetCurrentPlayer();
             int move;
 
-            if ((player == 1 && aiPlaysFirst) || (player == 2 && !aiPlaysFirst)) {
+            if ((player == 1 && aiPlaysFirst) || (player == 2 && !aiPlaysFirst)) 
+            {
                 move = ChooseBestMove(*game, ai);
             }
-            else {
+            else
+            {
                 auto valid = game->GetValidMoves();
                 std::uniform_int_distribution<> randMove(0, valid.size() - 1);
                 move = valid[randMove(gen)];
@@ -756,21 +810,42 @@ void Trainer::TestChampionAgainstRandom(int games) {
         }
 
         auto result = game->GetWinner();
-        if (aiPlaysFirst) {
-            if (result == IGame::Winner::FirstPlayer) ++firstWins;
-            else if (result == IGame::Winner::Draw) ++firstDraws;
-            else ++firstLosses;
+        if (aiPlaysFirst) 
+        {
+            if (result == IGame::Winner::FirstPlayer)
+            {
+                ++firstWins;
+            }
+            else if (result == IGame::Winner::Draw)
+            {
+                ++firstDraws;
+            }
+            else
+            {
+                ++firstLosses;
+            }
         }
-        else {
-            if (result == IGame::Winner::SecondPlayer) ++secondWins;
-            else if (result == IGame::Winner::Draw) ++secondDraws;
-            else ++secondLosses;
+        else 
+        {
+            if (result == IGame::Winner::SecondPlayer)
+            {
+                ++secondWins;
+            }
+            else if (result == IGame::Winner::Draw)
+            {
+                ++secondDraws;
+            }
+            else
+            {
+                ++secondLosses;
+            }
         }
     }
 
     std::cout << "\n=== Champion Test Results vs Random Agent ===\n";
 
-    auto percent = [](int value, int total) -> double {
+    auto percent = [](int value, int total) -> double 
+    {
         return total == 0 ? 0.0 : (value * 100.0 / total);
     };
 
@@ -788,16 +863,21 @@ void Trainer::TestChampionAgainstRandom(int games) {
 }
 
 
-void Trainer::TrainIterationsGD(int generations) {
+void Trainer::TrainIterationsGD(int generations) 
+{
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    for (int genIndex = 0; genIndex < generations; ++genIndex) {
-        for (int i = 0; i < m_populationSize; ++i) {
-            for (int m = 0; m < m_matchesPerIteration; ++m) {
+    for (int genIndex = 0; genIndex < generations; ++genIndex) 
+    {
+        for (int i = 0; i < m_populationSize; ++i) 
+        {
+            for (int m = 0; m < m_matchesPerIteration; ++m) 
+            {
                 std::uniform_int_distribution<> dist(0, m_populationSize - 1);
                 int opponentIdx;
-                do {
+                do 
+                {
                     opponentIdx = dist(gen);
                 } while (opponentIdx == i);
 
@@ -809,20 +889,22 @@ void Trainer::TrainIterationsGD(int generations) {
             }
         }
 
-        // Optional: Evaluate and track champion based on real matches
         EvaluateAndPromoteChampion();
 
         std::cout << "Finished GD generation " << genIndex << "\n";
     }
 }
 
-void Trainer::EvaluateAndPromoteChampion() {
-    std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b) {
+void Trainer::EvaluateAndPromoteChampion() 
+{
+    std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b) 
+    {
         return a.Wins > b.Wins;
     });
 
     NeuralNetwork* top = m_population[0].NN.get();
-    if (m_championId != top->Id) {
+    if (m_championId != top->Id) 
+    {
         m_championId = top->Id;
         m_championImprovements++;
         std::cout << "New GD champion: ID " << m_championId << "\n";
@@ -830,7 +912,8 @@ void Trainer::EvaluateAndPromoteChampion() {
 }
 
 
-std::unique_ptr<IGame> Trainer::CloneGameWithMove(const IGame& game, int move) {
+std::unique_ptr<IGame> Trainer::CloneGameWithMove(const IGame& game, int move) 
+{
     std::unique_ptr<IGame> copy = game.Clone();
     copy->MakeMove(move);
     return copy;

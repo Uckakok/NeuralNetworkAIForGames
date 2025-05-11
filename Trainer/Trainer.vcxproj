@@ -613,6 +613,9 @@
     <Image Include="Resources\Textures\Connect4\Background.png" />
     <Image Include="Resources\Textures\Connect4\player1.png" />
     <Image Include="Resources\Textures\Connect4\player2.png" />
+    <Image Include="Resources\Textures\Pente\background.png" />
+    <Image Include="Resources\Textures\Pente\player1.png" />
+    <Image Include="Resources\Textures\Pente\player2.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

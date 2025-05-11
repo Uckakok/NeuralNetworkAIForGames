@@ -6,12 +6,15 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Trainer", "Trainer\Trainer.vcxproj", "{8F844A29-D813-459C-AE41-D697A063723C}"
 	ProjectSection(ProjectDependencies) = postProject
 		{405E2D35-EBBB-4CA6-9248-57746F325AB6} = {405E2D35-EBBB-4CA6-9248-57746F325AB6}
+		{63C6A158-07FB-4943-9740-236E29FA14D7} = {63C6A158-07FB-4943-9740-236E29FA14D7}
 		{E2748C05-6F5B-400A-ADFD-0665429835A1} = {E2748C05-6F5B-400A-ADFD-0665429835A1}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Game_ConnectFour", "Game_ConnectFour\Game_ConnectFour.vcxproj", "{405E2D35-EBBB-4CA6-9248-57746F325AB6}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Game_Checkers", "Game_Checkers\Game_Checkers.vcxproj", "{E2748C05-6F5B-400A-ADFD-0665429835A1}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Game_Pente", "Game_Pente\Game_Pente.vcxproj", "{63C6A158-07FB-4943-9740-236E29FA14D7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,6 +48,14 @@ Global
 		{E2748C05-6F5B-400A-ADFD-0665429835A1}.Release|x64.Build.0 = Release|x64
 		{E2748C05-6F5B-400A-ADFD-0665429835A1}.Release|x86.ActiveCfg = Release|Win32
 		{E2748C05-6F5B-400A-ADFD-0665429835A1}.Release|x86.Build.0 = Release|Win32
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Debug|x64.ActiveCfg = Debug|x64
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Debug|x64.Build.0 = Debug|x64
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Debug|x86.ActiveCfg = Debug|Win32
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Debug|x86.Build.0 = Debug|Win32
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Release|x64.ActiveCfg = Release|x64
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Release|x64.Build.0 = Release|x64
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Release|x86.ActiveCfg = Release|Win32
+		{63C6A158-07FB-4943-9740-236E29FA14D7}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

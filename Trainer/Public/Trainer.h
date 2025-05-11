@@ -47,7 +47,6 @@ private:
     void TrainIterationsAgainstRandom(int generations);
     void TestChampionAgainstRandom(int games);
     void TrainIterations(int n);
-    void PlayAgainstAI();
     int ChooseBestMove(const IGame& game, const NeuralNetwork* network);
     IGame::Winner PlayMatch(NeuralNetwork* nn1, NeuralNetwork* nn2);
     IGame::Winner PlayMatchGD(NeuralNetwork* nn1, NeuralNetwork* nn2);

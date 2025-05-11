@@ -17,7 +17,6 @@ public:
     bool UnMakeMove();
     Winner GetWinner() const;
     std::vector<int> GetValidMoves() const;
-    std::vector<float> GetState() const;
     int GetCurrentPlayer() const;
 
     void PrintBoard() const;
@@ -30,13 +29,18 @@ public:
     ~Pente();
 
 private:
-    static const int m_rows = 6;
-    static const int m_cols = 7;
+    struct Coordinates {
+        int x = 0;
+        int y = 0;
+    };
+    int m_boardSize = 19;
     std::vector<std::vector<int>> m_board; // 0 = empty, 1 = player 1, 2 = player 2
     int m_currentPlayer;
     Winner m_winner;
-    std::vector<int> m_moveHistory;
+    std::vector<std::vector<Coordinates>> m_moveHistory;
+    int m_takesForFirst = 0;
+    int m_takesForSecond = 0;
 
-    bool CheckWin(int lastRow, int lastCol);
-    bool IsBoardFull() const;
+    bool CheckIfMoveLegal(int x, int y);
+    bool CheckIfBoardFull();
 };

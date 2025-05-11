@@ -2,14 +2,14 @@
 #include "ConnectFour.h"
 #include <iostream>
 
-ConnectFour::ConnectFour(const ConnectFour& other)
+Pente::Pente(const Pente& other)
 {
     m_board = other.m_board;                      
     m_currentPlayer = other.m_currentPlayer;      
     m_winner = other.m_winner;                    
 }
 
-std::unordered_map<int, std::string> ConnectFour::GetSpritePaths() const
+std::unordered_map<int, std::string> Pente::GetSpritePaths() const
 {
     return 
     {
@@ -19,7 +19,7 @@ std::unordered_map<int, std::string> ConnectFour::GetSpritePaths() const
     };
 }
 
-std::vector<std::vector<int>> ConnectFour::GetSpriteGrid() const
+std::vector<std::vector<int>> Pente::GetSpriteGrid() const
 {
     std::vector<std::vector<int>> grid(m_rows, std::vector<int>(m_cols, 0));
 
@@ -46,7 +46,7 @@ std::vector<std::vector<int>> ConnectFour::GetSpriteGrid() const
 }
 
 
-bool ConnectFour::InterpretAndMakeMove(const std::string& moveStr)
+bool Pente::InterpretAndMakeMove(const std::string& moveStr)
 {
     try 
     {
@@ -59,18 +59,18 @@ bool ConnectFour::InterpretAndMakeMove(const std::string& moveStr)
     }
 }
 
-ConnectFour::~ConnectFour() 
+Pente::~Pente() 
 {
     ;
 }
 
-ConnectFour::ConnectFour() 
+Pente::Pente() 
 {
 
     Reset();
 }
 
-void ConnectFour::Reset() 
+void Pente::Reset() 
 {
     m_board = std::vector<std::vector<int>>(m_rows, std::vector<int>(m_cols, 0));
     m_currentPlayer = 1;
@@ -78,7 +78,7 @@ void ConnectFour::Reset()
     m_moveHistory.clear();
 }
 
-bool ConnectFour::MakeMove(int x, int y) 
+bool Pente::MakeMove(int x, int y) 
 {
     if (x < 0 || x >= m_rows || y < 0 || y >= m_cols) 
     {
@@ -117,7 +117,7 @@ bool ConnectFour::MakeMove(int x, int y)
     return false;
 }
 
-bool ConnectFour::MakeMove(int column) 
+bool Pente::MakeMove(int column) 
 {
     if (column < 0 || column >= m_cols || m_winner != Winner::OnGoing)
     {
@@ -149,7 +149,7 @@ bool ConnectFour::MakeMove(int column)
     return false;
 }
 
-bool ConnectFour::UnMakeMove()
+bool Pente::UnMakeMove()
 {
     if (m_moveHistory.empty()) 
     {
@@ -180,12 +180,12 @@ bool ConnectFour::UnMakeMove()
     return true;
 }
 
-IGame::Winner ConnectFour::GetWinner() const 
+IGame::Winner Pente::GetWinner() const 
 {
     return m_winner;
 }
 
-std::vector<int> ConnectFour::GetValidMoves() const 
+std::vector<int> Pente::GetValidMoves() const 
 {
     std::vector<int> moves;
     if (m_winner != IGame::Winner::OnGoing)
@@ -202,12 +202,12 @@ std::vector<int> ConnectFour::GetValidMoves() const
     return moves;
 }
 
-int ConnectFour::GetCurrentPlayer() const 
+int Pente::GetCurrentPlayer() const 
 {
     return m_currentPlayer;
 }
 
-std::vector<float> ConnectFour::GetState() const 
+std::vector<float> Pente::GetState() const 
 {
     std::vector<float> state;
     for (const auto& row : m_board) 
@@ -220,7 +220,7 @@ std::vector<float> ConnectFour::GetState() const
     return state;
 }
 
-bool ConnectFour::IsBoardFull() const 
+bool Pente::IsBoardFull() const 
 {
     for (int col = 0; col < m_cols; ++col)
     {
@@ -232,7 +232,7 @@ bool ConnectFour::IsBoardFull() const
     return true;
 }
 
-bool ConnectFour::CheckWin(int row, int col) 
+bool Pente::CheckWin(int row, int col) 
 {
     int player = m_board[row][col];
     if (player == 0)
@@ -282,7 +282,7 @@ bool ConnectFour::CheckWin(int row, int col)
 
 
 
-void ConnectFour::PrintBoard() const 
+void Pente::PrintBoard() const 
 {
     for (const auto& row : m_board) 
     {
@@ -298,7 +298,7 @@ void ConnectFour::PrintBoard() const
     std::cout << "0 1 2 3 4 5 6\n\n";
 }
 
-std::vector<float> ConnectFour::GetBoardState() const 
+std::vector<float> Pente::GetBoardState() const 
 {
     std::vector<float> state(m_rows * m_cols, 0.0f);
     for (int r = 0; r < m_rows; ++r) 
@@ -320,14 +320,14 @@ std::vector<float> ConnectFour::GetBoardState() const
     return state;
 }
 
-std::string ConnectFour::GetName() const
+std::string Pente::GetName() const
 {
     return std::string("ConnectFour");
 }
 
-std::unique_ptr<IGame> ConnectFour::Clone() const 
+std::unique_ptr<IGame> Pente::Clone() const 
 {
-    return std::make_unique<ConnectFour>(*this);
+    return std::make_unique<Pente>(*this);
 }
 
 

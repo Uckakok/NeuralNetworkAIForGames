@@ -1427,5 +1427,14 @@
     <Image Include="Resources\Textures\Checkers\player2.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="Resources\Textures\Pente\player2.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Resources\Textures\Pente\background.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="Resources\Textures\Pente\player1.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>

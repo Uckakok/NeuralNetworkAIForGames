@@ -43,7 +43,7 @@ void GraphicalInterface::MouseButtonCallback(GLFWwindow* window, int button, int
 
 void GraphicalInterface::HandleClick(int x, int y)
 {
-	m_currentGame->MakeMove(y, x);
+	m_currentGame->MakeMove(y, x);/*
 	m_currentGame->PrintBoard();
 	for (auto& pos : m_currentGame->GetValidMoves())
 	{
@@ -52,7 +52,7 @@ void GraphicalInterface::HandleClick(int x, int y)
 		int fr = from / 8, fc = from % 8;
 		int tr = to / 8, tc = to % 8;
 		std::cout << fr << " " << fc << ", " << tr << " " << tc << "\n";
-	}
+	}*/
 	SubmitEntitiesFromGrid(m_currentGame->GetSpriteGrid());
 }
 
