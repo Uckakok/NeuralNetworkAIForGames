@@ -15,19 +15,40 @@
 Trainer::Trainer(std::unique_ptr<IGame> baseGame)
     : m_baseGame(std::move(baseGame)), m_championImprovements(0)
 {
-    for (int i = 0; i < m_populationSize; ++i) 
-    {
-        m_population.emplace_back(Player{ std::make_unique<NeuralNetwork>(
-            this->m_baseGame->GetBoardState().size(),
-            std::vector<int>{42, 42, 21, 8}
-        ), 0 });
-    }
+    ;
 }
 
 
 
 void Trainer::Run() 
 {
+    std::cout << "=== Neural Network Trainer Setup ===\n";
+
+    int numLayers = 0;
+    std::vector<int> layerSizes;
+
+    std::cout << "Enter number of hidden layers: ";
+    std::cin >> numLayers;
+
+    for (int i = 0; i < numLayers; ++i) 
+    {
+        int neurons = 0;
+        std::cout << "Enter number of neurons in hidden layer " << (i + 1) << ": ";
+        std::cin >> neurons;
+        layerSizes.push_back(neurons);
+    }
+
+    m_population.clear();
+    for (int i = 0; i < m_populationSize; ++i) 
+    {
+        m_population.emplace_back(Player{
+            std::make_unique<NeuralNetwork>(
+                m_baseGame->GetBoardState().size(),
+                layerSizes
+            ), 0
+            });
+    }
+
     while (true) 
     {
         std::cout << "\n=== Neural Network Trainer ===\n";
