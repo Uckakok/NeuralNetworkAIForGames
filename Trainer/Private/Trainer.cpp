@@ -10,6 +10,8 @@
 #include <numeric>
 #include <algorithm>
 #include "Selector.h"
+#include <thread>
+#include <mutex>
 #include <unordered_set>
 
 Trainer::Trainer(std::unique_ptr<IGame> baseGame)
@@ -544,60 +546,83 @@ NeuralNetwork* Trainer::GetChampion()
 }
 
 
-void Trainer::TrainIterationsAgainstRandom(int generations) 
+void Trainer::TrainIterationsAgainstRandom(int generations)
 {
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    for (int genIndex = 0; genIndex < generations; ++genIndex) 
+    const int threadBatchSize = 10;
+
+    for (int genIndex = 0; genIndex < generations; ++genIndex)
     {
-        for (auto& player : m_population) 
+        for (auto& player : m_population)
         {
             player.Wins = 0;
             player.Losses = 0;
         }
 
-        for (auto& player : m_population) 
+        for (size_t batchStart = 0; batchStart < m_population.size(); batchStart += threadBatchSize)
         {
-            for (int m = 0; m < m_matchesPerIteration; ++m) 
+            std::vector<std::thread> threads;
+            size_t batchEnd = std::min(batchStart + threadBatchSize, m_population.size());
+
+            for (size_t i = batchStart; i < batchEnd; ++i)
             {
-                auto game = m_baseGame->Clone();
-                std::uniform_int_distribution<> coin(0, 1);
-                bool aiPlaysFirst = coin(gen) == 0;
-
-                while (game->GetWinner() == IGame::Winner::OnGoing) 
+                threads.emplace_back([&, i]()
                 {
-                    int playerTurn = game->GetCurrentPlayer();
-                    int move;
+                    Player& player = m_population[i];
 
-                    if ((playerTurn == 1 && aiPlaysFirst) || (playerTurn == 2 && !aiPlaysFirst)) 
+                    std::mt19937 localGen(rd());
+
+                    int localWins = 0;
+                    int localLosses = 0;
+
+                    for (int m = 0; m < m_matchesPerIteration; ++m)
                     {
-                        move = ChooseBestMove(*game, player.NN.get());
-                    }
-                    else 
-                    {
-                        auto valid = game->GetValidMoves();
-                        std::uniform_int_distribution<> randMove(0, static_cast<int>(valid.size()) - 1);
-                        move = valid[randMove(gen)];
+                        auto game = m_baseGame->Clone();
+                        std::uniform_int_distribution<> coin(0, 1);
+                        bool aiPlaysFirst = coin(localGen) == 0;
+
+                        while (game->GetWinner() == IGame::Winner::OnGoing)
+                        {
+                            int playerTurn = game->GetCurrentPlayer();
+                            int move;
+
+                            if ((playerTurn == 1 && aiPlaysFirst) || (playerTurn == 2 && !aiPlaysFirst))
+                            {
+                                move = ChooseBestMove(*game, player.NN.get());
+                            }
+                            else
+                            {
+                                auto valid = game->GetValidMoves();
+                                std::uniform_int_distribution<> randMove(0, static_cast<int>(valid.size()) - 1);
+                                move = valid[randMove(localGen)];
+                            }
+
+                            game->MakeMove(move);
+                        }
+
+                        auto result = game->GetWinner();
+                        if ((aiPlaysFirst && result == IGame::Winner::FirstPlayer) ||
+                            (!aiPlaysFirst && result == IGame::Winner::SecondPlayer))
+                        {
+                            ++localWins;
+                        }
+                        else if (result != IGame::Winner::Draw)
+                        {
+                            ++localLosses;
+                        }
                     }
 
-                    game->MakeMove(move);
-                }
-
-                auto result = game->GetWinner();
-                if ((aiPlaysFirst && result == IGame::Winner::FirstPlayer) ||
-                    (!aiPlaysFirst && result == IGame::Winner::SecondPlayer)) 
-                {
-                    ++player.Wins;
-                }
-                else if (result != IGame::Winner::Draw) 
-                {
-                    ++player.Losses;
-                }
+                    player.Wins = localWins;
+                    player.Losses = localLosses;
+                });
             }
+
+            for (auto& t : threads) t.join();
         }
 
-        std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b) 
+        std::sort(m_population.begin(), m_population.end(), [](const Player& a, const Player& b)
         {
             float aTotal = a.Wins + a.Losses;
             float bTotal = b.Wins + b.Losses;
@@ -609,13 +634,13 @@ void Trainer::TrainIterationsAgainstRandom(int generations)
         int survivors = m_populationSize / 2;
         std::vector<Player> nextGen;
 
-        for (int i = 0; i < survivors; ++i) 
+        for (int i = 0; i < survivors; ++i)
         {
             nextGen.push_back(Player{ std::make_unique<NeuralNetwork>(*m_population[i].NN), 0, 0 });
         }
 
         std::uniform_int_distribution<> survivorDist(0, survivors - 1);
-        while (nextGen.size() < m_populationSize) 
+        while (nextGen.size() < m_populationSize)
         {
             int parentIdx = survivorDist(gen);
             auto childNN = std::make_unique<NeuralNetwork>(
@@ -625,9 +650,9 @@ void Trainer::TrainIterationsAgainstRandom(int generations)
         }
 
         bool championAlive = false;
-        for (const auto& player : nextGen) 
+        for (const auto& player : nextGen)
         {
-            if (player.NN->Id == m_championId) 
+            if (player.NN->Id == m_championId)
             {
                 championAlive = true;
                 break;
