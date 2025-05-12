@@ -26,7 +26,11 @@ class MonteCarlo
 {
 public:
 	static int MonteCarloTreeSearch(IGame& initialState, float seconds, NeuralNetwork* ai);
+	static int MonteCarloTreeSearch(IGame& initialState, int iterations, NeuralNetwork* ai);
 private:
+	static int SelectBestAction(treeNode& root, IGame& initialState);
+
+	static void RunMCTSLoop(IGame* initialState, int iterations, treeNode* root, NeuralNetwork* ai, int rootPlayer);
 	static void RunMCTSLoop(IGame* initialState, std::chrono::high_resolution_clock::time_point startTime, 
 		std::chrono::duration<double> timeRestriction, treeNode* root, NeuralNetwork* ai, int rootPlayer);
 	static void PerformMCTSTurn(IGame& initialState, treeNode* rootNode, NeuralNetwork* ai, int rootPlayer);

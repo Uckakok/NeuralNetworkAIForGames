@@ -6,5 +6,5 @@ extern "C" __declspec(dllexport) const char* GetGameName() {
 }
 
 extern "C" __declspec(dllexport) IGame * CreateGame() {
-    return new Pente();
+    return new ConnectFour();
 }

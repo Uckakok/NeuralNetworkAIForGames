@@ -11,6 +11,7 @@
 #include <algorithm>
 #include "Selector.h"
 #include <thread>
+#include <conio.h>
 #include <mutex>
 #include <unordered_set>
 
@@ -57,10 +58,10 @@ void Trainer::Run()
         std::cout << "1. Play against AI\n";
         std::cout << "2. Train N iterations\n";
         std::cout << "3. Save current best\n";
-        std::cout << "4. Test champion vs random player (1000 games)\n";
+        std::cout << "4. Test champion vs random player (100 games)\n";
         std::cout << "5. Train N iterations against random\n";
         std::cout << "6. Change parameters\n";
-        std::cout << "7. Train N iterations with gradient descent\n";
+        std::cout << "7. Train N iterations with PPO\n";
         std::cout << "8. Load Neural network\n";
         std::cout << "9. Fuzz extremes\n";
         std::cout << "0. Exit\n";
@@ -108,6 +109,7 @@ void Trainer::Run()
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
             GameSelector::PlayGameLoop(std::move(m_baseGame), GetChampion(), userPlayer);
+            m_baseGame->Reset();
             break;
         }
         case 2: {
@@ -137,7 +139,7 @@ void Trainer::Run()
             break;
         }
         case 4:
-            TestChampionAgainstRandom(1000);
+            TestChampionAgainstRandom(100);
             break;
         case 5:
             std::cout << "Train against random agent only. Enter iterations: ";
@@ -157,7 +159,7 @@ void Trainer::Run()
             std::cin >> gdIters;
             if (!std::cin.fail() && gdIters > 0)
             {
-                TrainIterationsGD(gdIters);
+                TrainIterationsPPO(gdIters);
             }
             else
             {
@@ -321,6 +323,7 @@ void Trainer::ChangeParametersMenu()
         std::cout << "2. Population size (current: " << m_populationSize << ")\n";
         std::cout << "3. Matches per iteration (current: " << m_matchesPerIteration << ")\n";
         std::cout << "4. Learning rate (current: " << m_learningRate << ")\n";
+        std::cout << "5. MCTS episodes (current: " << m_MCTSEpisodes << ")\n";
         std::cout << "0. Exit\n";
         std::cout << "Choice: ";
 
@@ -368,7 +371,7 @@ void Trainer::ChangeParametersMenu()
                     {
                         m_population.emplace_back(Player{ std::make_unique<NeuralNetwork>(
                             this->m_baseGame->GetBoardState().size(),
-                            std::vector<int>{42, 42, 21, 8}
+                            std::vector<int>{42, 42, 21, 8} //TODO: fix - remove hardcoded weights
                             ), 0 });
                     }
                 }
@@ -406,6 +409,21 @@ void Trainer::ChangeParametersMenu()
                 m_learningRate = newRate;
             }
             else 
+            {
+                std::cout << "Invalid number.\n";
+            }
+            break;
+        }
+        case 5:
+        {
+            std::cout << "Enter new MCTS episodes (more than 0): ";
+            int newEpisodes;
+            std::cin >> newEpisodes;
+            if (!std::cin.fail() && newEpisodes > 0)
+            {
+                m_MCTSEpisodes = newEpisodes;
+            }
+            else
             {
                 std::cout << "Invalid number.\n";
             }
@@ -779,39 +797,83 @@ void FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int n
     std::cout << "[FUZZING COMPLETE] Min Eval: " << outMinEval << ", Max Eval: " << outMaxEval << "\n";
 }
 
-IGame::Winner Trainer::PlayMatchGD(NeuralNetwork* nn1, NeuralNetwork* nn2) {
-    auto game = m_baseGame->Clone();
-    std::vector<Step> history1, history2;
+void Trainer::ApplyPPORewards(NeuralNetwork* nn, std::vector<Step>& history) 
+{
+    const float epsilon = 0.2f;
 
-    while (game->GetWinner() == IGame::Winner::OnGoing) 
+    for (auto& step : history) 
     {
-        NeuralNetwork* currentNN = game->GetCurrentPlayer() == 1 ? nn1 : nn2;
-        auto& history = game->GetCurrentPlayer() == 1 ? history1 : history2;
+        float newValue = nn->Evaluate(step.BoardState);
+        float advantage = step.Reward - step.ValueEstimate;
 
-        int move = ChooseBestMove(*game, currentNN);
-        history.push_back({ game->GetBoardState() }); // no target yet
+        float clippedAdvantage = std::max(-epsilon, std::min(advantage, epsilon));
+        float target = step.ValueEstimate + clippedAdvantage;
+
+        nn->TrainSingle(step.BoardState, target, m_learningRate);
+    }
+}
+
+IGame::Winner Trainer::PlayMatchPPO(NeuralNetwork* nn)
+{
+    auto game = m_baseGame->Clone();
+    std::vector<Step> history;
+
+    {
+        float valueEstimate = nn->Evaluate(game->GetBoardState());
+        history.push_back({
+            game->GetBoardState(),
+            valueEstimate,
+            0.0f,
+            game->GetCurrentPlayer()
+            });
+
+        const auto& validMoves = game->GetValidMoves();
+        game->MakeMove(validMoves[std::rand() % validMoves.size()]);
+    }
+
+    while (game->GetWinner() == IGame::Winner::OnGoing)
+    {
+        float valueEstimate = nn->Evaluate(game->GetBoardState());
+        history.push_back({
+            game->GetBoardState(),
+            valueEstimate,
+            0.0f,
+            game->GetCurrentPlayer()
+            });
+
+        int move = MonteCarlo::MonteCarloTreeSearch(*game, m_MCTSEpisodes, nn);
         game->MakeMove(move);
     }
 
     IGame::Winner winner = game->GetWinner();
-    float reward = winner == IGame::Winner::Draw ? 0.0f :
-        winner == IGame::Winner::FirstPlayer ? +1.0f : -1.0f;
-
-    ApplyRewards(nn1, history1, reward);
-    ApplyRewards(nn2, history2, -reward);
-    return winner;
-}
-
-void Trainer::ApplyRewards(NeuralNetwork* nn, std::vector<Step>& history, float finalReward) 
-{
-    float gamma = 0.9f;
-    float value = finalReward;
-    for (int i = history.size() - 1; i >= 0; --i) 
+    float finalOutcome;
+    if (winner == IGame::Winner::FirstPlayer)
     {
-        history[i].TargetValue = value;
-        nn->TrainSingle(history[i].BoardState, value, m_learningRate);
-        value *= gamma;
+        finalOutcome = 1.0f;
     }
+    else if (winner == IGame::Winner::SecondPlayer)
+    {
+        finalOutcome = -1.0f;
+    }
+    else
+    {
+        finalOutcome = 0.0f;
+    }
+
+    for (auto& step : history)
+    {
+        if (step.Player == 1) 
+        {
+            step.Reward = finalOutcome;
+        }
+        else 
+        {  
+            step.Reward = -finalOutcome;
+        }
+    }
+
+    ApplyPPORewards(nn, history);
+    return winner;
 }
 
 
@@ -843,7 +905,7 @@ void Trainer::TestChampionAgainstRandom(int games)
 
             if ((player == 1 && aiPlaysFirst) || (player == 2 && !aiPlaysFirst)) 
             {
-                move = ChooseBestMove(*game, ai);
+                move = MonteCarlo::MonteCarloTreeSearch(*game, 100, ai);
             }
             else
             {
@@ -909,35 +971,38 @@ void Trainer::TestChampionAgainstRandom(int games)
 }
 
 
-void Trainer::TrainIterationsGD(int generations) 
+void Trainer::TrainIterationsPPO(int generations)
 {
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    for (int genIndex = 0; genIndex < generations; ++genIndex) 
+    for (int genIndex = 0; genIndex < generations; ++genIndex)
     {
-        for (int i = 0; i < m_populationSize; ++i) 
+        NeuralNetwork* championNN = GetChampion();
+        if (!championNN)
         {
-            for (int m = 0; m < m_matchesPerIteration; ++m) 
-            {
-                std::uniform_int_distribution<> dist(0, m_populationSize - 1);
-                int opponentIdx;
-                do 
-                {
-                    opponentIdx = dist(gen);
-                } while (opponentIdx == i);
-
-                NeuralNetwork* netA = m_population[i].NN.get();
-                NeuralNetwork* netB = m_population[opponentIdx].NN.get();
-
-                bool iIsSecond = dist(gen) % 2 == 0;
-                iIsSecond ? PlayMatchGD(netB, netA) : PlayMatchGD(netA, netB);
-            }
+            championNN = m_population[0].NN.get();
         }
 
-        EvaluateAndPromoteChampion();
+        for (int m = 0; m < m_matchesPerIteration; ++m)
+        {
+            PlayMatchPPO(championNN);
+        }
 
-        std::cout << "Finished GD generation " << genIndex << "\n";
+        m_population[0].NN = std::make_unique<NeuralNetwork>(*championNN);
+        m_championId = m_population[0].NN->Id;
+
+        std::cout << "Finished PPO generation " << genIndex << "\n";
+
+        if (_kbhit())
+        {
+            char ch = _getch();
+            if (ch == 'q' || ch == 'Q')
+            {
+                std::cout << "Training interrupted by user.\n";
+                break;
+            }
+        }
     }
 }
 

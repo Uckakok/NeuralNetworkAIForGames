@@ -328,6 +328,7 @@ void NeuralNetwork::TrainSingle(const std::vector<float>& input, float target, f
     }
     float output = finalSum;
     float error = output - target;
+    error = std::max(-1000.0f, std::min(1000.0f, error));
 
     std::vector<float> dEdw(m_weights.back().size());
     for (int i = 0; i < m_weights.back().size(); ++i) 

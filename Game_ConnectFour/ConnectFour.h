@@ -4,10 +4,10 @@
 
 #define IGAME_API __declspec(dllexport)
 
-class IGAME_API Pente : public IGame {
+class IGAME_API ConnectFour : public IGame {
 public:
-    Pente();
-    Pente(const Pente& other);
+    ConnectFour();
+    ConnectFour(const ConnectFour& other);
     std::unordered_map<int, std::string> GetSpritePaths() const;
     std::vector<std::vector<int>> GetSpriteGrid() const;
     bool InterpretAndMakeMove(const std::string& moveStr);
@@ -27,7 +27,7 @@ public:
 
     std::string GetName() const;
 
-    ~Pente();
+    ~ConnectFour();
 
 private:
     static const int m_rows = 6;

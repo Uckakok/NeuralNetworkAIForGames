@@ -2,6 +2,7 @@
 #include <iostream>
 #include <thread>
 
+
 void MonteCarlo::RunMCTSLoop(IGame* initialState, std::chrono::high_resolution_clock::time_point startTime, std::chrono::duration<double> timeRestriction, treeNode* root, NeuralNetwork* ai, int rootPlayer)
 {
 	while (std::chrono::high_resolution_clock::now() - startTime < timeRestriction) 
@@ -30,7 +31,7 @@ void MonteCarlo::PerformMCTSTurn(IGame& initialState, treeNode* rootNode, Neural
 		return;
 	}
 
-	float score = ai->GetClampedEvaluation(initialState.GetBoardState());
+	float score = ai->Evaluate(initialState.GetBoardState());
 	if (initialState.GetWinner() != IGame::Winner::OnGoing && initialState.GetWinner() != IGame::Winner::Draw)
 	{
 		score *= 100;
@@ -55,6 +56,15 @@ void MonteCarlo::PerformMCTSTurn(IGame& initialState, treeNode* rootNode, Neural
 	node->Visits++;
 	node->TotalScore += score;
 	node->ValueChangeMute.unlock();
+}
+
+void MonteCarlo::RunMCTSLoop(IGame* initialState, int iterations, treeNode* root, NeuralNetwork* ai, int rootPlayer)
+{
+	while (root->Visits < iterations)
+	{
+		PerformMCTSTurn(*initialState, root, ai, rootPlayer);
+	}
+	return;
 }
 
 int MonteCarlo::MonteCarloTreeSearch(IGame& initialState, float seconds, NeuralNetwork* ai)
@@ -83,31 +93,70 @@ int MonteCarlo::MonteCarloTreeSearch(IGame& initialState, float seconds, NeuralN
 	{
 		thread.join();
 	}
+	int bestAction = SelectBestAction(*rootNode, initialState);
 
+	delete rootNode;
+	
+	return bestAction;
+}
+
+int MonteCarlo::MonteCarloTreeSearch(IGame& initialState, int iterations, NeuralNetwork* ai)
+{
+	treeNode* rootNode = new treeNode();
+	rootNode->Visits = 1;
+	ExpandNode(initialState, rootNode);
+
+	std::vector<std::thread> threads;
+	std::vector<std::unique_ptr<IGame>> boards;
+
+	int rootPlayer = initialState.GetCurrentPlayer();
+
+	for (int i = 0; i < 12; ++i)
+	{
+		auto boardCopy = initialState.Clone();
+		threads.emplace_back([boardCopy = std::move(boardCopy), iterations, rootNode, ai, rootPlayer]() mutable
+		{
+			RunMCTSLoop(boardCopy.get(), iterations, rootNode, ai, rootPlayer);
+		});
+	}
+	for (auto& thread : threads)
+	{
+		thread.join();
+	}
+	int bestAction = SelectBestAction(*rootNode, initialState);
+
+	delete rootNode;
+
+	return bestAction;
+}
+
+
+int MonteCarlo::SelectBestAction(treeNode& root, IGame& initialState)
+{
 	treeNode* bestChild = nullptr;
 	double bestScore;
-	if (initialState.GetCurrentPlayer() != 1) 
+	if (initialState.GetCurrentPlayer() != 1)
 	{
 		bestScore = INT_MIN;
 	}
-	else 
+	else
 	{
-		bestScore = INT_MAX;
+		bestScore = INT_MIN;
 	}
-	for (treeNode* child : rootNode->Children) 
+	for (treeNode* child : root.Children)
 	{
 		double score = child->TotalScore / child->Visits;
-		if (initialState.GetCurrentPlayer() != 1) 
+		if (initialState.GetCurrentPlayer() != 1)
 		{
-			if (score > bestScore) 
+			if (score > bestScore)
 			{
 				bestScore = score;
 				bestChild = child;
 			}
 		}
-		else 
+		else
 		{
-			if (score < bestScore) 
+			if (score > bestScore)
 			{
 				bestScore = score;
 				bestChild = child;
@@ -115,7 +164,6 @@ int MonteCarlo::MonteCarloTreeSearch(IGame& initialState, float seconds, NeuralN
 		}
 	}
 	int bestMove = bestChild->PreviousMove;
-	delete rootNode;
 	return bestMove;
 }
 

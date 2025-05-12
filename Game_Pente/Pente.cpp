@@ -280,9 +280,16 @@ std::vector<int> Pente::GetValidMoves() const
         return moves;
     }
 
-    for (int y = 0; y < m_boardSize; ++y) 
+    int radius = 4;
+    int center = m_boardSize / 2;
+    int startX = std::max(0, center - radius);
+    int endX = std::min(m_boardSize - 1, center + radius);
+    int startY = std::max(0, center - radius);
+    int endY = std::min(m_boardSize - 1, center + radius);
+
+    for (int y = startY; y <= endY; ++y)
     {
-        for (int x = 0; x < m_boardSize; ++x) 
+        for (int x = startX; x <= endX; ++x)
         {
             if (m_board[y][x] == 0)
             {
@@ -292,6 +299,21 @@ std::vector<int> Pente::GetValidMoves() const
     }
 
     return moves;
+
+    /*
+    for (int y = 0; y < m_boardSize; ++y)
+    {
+        for (int x = 0; x < m_boardSize; ++x)
+        {
+            if (m_board[y][x] == 0)
+            {
+                moves.push_back(y * m_boardSize + x);
+            }
+        }
+    }
+
+    return moves;
+    */
 }
 
 int Pente::GetCurrentPlayer() const

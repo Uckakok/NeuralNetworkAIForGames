@@ -14,10 +14,11 @@ public:
     void Run();
 
 private:
-    struct Step 
-    {
+    struct Step {
         std::vector<float> BoardState;
-        float TargetValue;
+        float ValueEstimate;
+        float Reward;
+        int Player;
     };
 
 
@@ -30,7 +31,8 @@ private:
 
 
     int m_championImprovements = 0;
-
+    
+    int m_MCTSEpisodes = 1000;
     int m_populationSize = 40;
     int m_matchesPerIteration = 4;
     float m_learningRate = 0.1f;
@@ -42,16 +44,16 @@ private:
 
     NeuralNetwork* m_loadedNetwork;
 
+    IGame::Winner PlayMatchPPO(NeuralNetwork* nn1);
     void FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int nGames, float& outMinEval, float& outMaxEval);
     void ChangeParametersMenu();
     void TrainIterationsAgainstRandom(int generations);
     void TestChampionAgainstRandom(int games);
     void TrainIterations(int n);
     int ChooseBestMove(const IGame& game, const NeuralNetwork* network);
+    void ApplyPPORewards(NeuralNetwork* nn, std::vector<Step>& history);
     IGame::Winner PlayMatch(NeuralNetwork* nn1, NeuralNetwork* nn2);
-    IGame::Winner PlayMatchGD(NeuralNetwork* nn1, NeuralNetwork* nn2);
-    void ApplyRewards(NeuralNetwork* nn, std::vector<Step>& history, float finalReward);
-    void TrainIterationsGD(int generations);
+    void TrainIterationsPPO(int generations);
     void EvaluateAndPromoteChampion();
 
     std::unique_ptr<IGame> CloneGameWithMove(const IGame& game, int move);
