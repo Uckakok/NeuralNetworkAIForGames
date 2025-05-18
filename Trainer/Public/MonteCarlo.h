@@ -25,8 +25,14 @@ struct treeNode
 class MonteCarlo
 {
 public:
+	struct EvaluationAndMove
+	{
+		int Move;
+		float stateEvaluation;
+	};
+
 	static int MonteCarloTreeSearch(IGame& initialState, float seconds, NeuralNetwork* ai);
-	static int MonteCarloTreeSearch(IGame& initialState, int iterations, NeuralNetwork* ai);
+	static EvaluationAndMove MonteCarloTreeSearch(IGame& initialState, int iterations, NeuralNetwork* ai);
 private:
 	static int SelectBestAction(treeNode& root, IGame& initialState);
 

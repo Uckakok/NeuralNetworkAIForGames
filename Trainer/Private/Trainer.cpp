@@ -108,8 +108,7 @@ void Trainer::Run()
 
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-            GameSelector::PlayGameLoop(std::move(m_baseGame), GetChampion(), userPlayer);
-            m_baseGame->Reset();
+            GameSelector::PlayGameLoop(m_baseGame->Clone(), GetChampion(), userPlayer);
             break;
         }
         case 2: {
@@ -232,7 +231,7 @@ void Trainer::Run()
 }
 
 
-void Trainer::FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int nGames, float& outMinEval, float& outMaxEval)
+void Trainer::FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int nGames, float& outMinEval, float& outMaxEval, bool log)
 {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -264,7 +263,10 @@ void Trainer::FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* netwo
         }
     }
 
-    std::cout << "[FUZZING COMPLETE] Min Eval: " << outMinEval << ", Max Eval: " << outMaxEval << "\n";
+    if (log)
+    {
+        std::cout << "[FUZZING COMPLETE] Min Eval: " << outMinEval << ", Max Eval: " << outMaxEval << "\n";
+    }
 
 }
 
@@ -324,6 +326,7 @@ void Trainer::ChangeParametersMenu()
         std::cout << "3. Matches per iteration (current: " << m_matchesPerIteration << ")\n";
         std::cout << "4. Learning rate (current: " << m_learningRate << ")\n";
         std::cout << "5. MCTS episodes (current: " << m_MCTSEpisodes << ")\n";
+        std::cout << "6 Epsilon (current: " << m_epsilon << ")\n";
         std::cout << "0. Exit\n";
         std::cout << "Choice: ";
 
@@ -361,13 +364,13 @@ void Trainer::ChangeParametersMenu()
             std::cin >> newSize;
             if (!std::cin.fail() && newSize >= 2 && newSize % 2 == 0) 
             {
-                if (newSize < m_population.size()) 
+                if (newSize < static_cast<int>(m_population.size())) 
                 {
                     m_population.resize(newSize);
                 }
                 else 
                 {
-                    while (m_population.size() < newSize) 
+                    while (static_cast<int>(m_population.size()) < newSize)
                     {
                         m_population.emplace_back(Player{ std::make_unique<NeuralNetwork>(
                             this->m_baseGame->GetBoardState().size(),
@@ -422,6 +425,21 @@ void Trainer::ChangeParametersMenu()
             if (!std::cin.fail() && newEpisodes > 0)
             {
                 m_MCTSEpisodes = newEpisodes;
+            }
+            else
+            {
+                std::cout << "Invalid number.\n";
+            }
+            break;
+        }
+        case 6:
+        {
+            std::cout << "Enter new epsilon: ";
+            float newEpsilon;
+            std::cin >> newEpsilon;
+            if (!std::cin.fail() && newEpsilon > 0)
+            {
+                m_epsilon = newEpsilon;
             }
             else
             {
@@ -532,7 +550,7 @@ void Trainer::TrainIterations(int generations)
         }
 
         std::uniform_int_distribution<> survivorDist(0, survivors - 1);
-        while (nextGen.size() < m_populationSize) 
+        while (static_cast<int>(nextGen.size()) < m_populationSize)
         {
             int parentIdx = survivorDist(gen);
             auto childNN = std::make_unique<NeuralNetwork>(
@@ -632,7 +650,7 @@ void Trainer::TrainIterationsAgainstRandom(int generations)
                         }
                     }
 
-                    player.Wins = localWins;
+                    player.Wins = static_cast<float>(localWins);
                     player.Losses = localLosses;
                 });
             }
@@ -658,7 +676,7 @@ void Trainer::TrainIterationsAgainstRandom(int generations)
         }
 
         std::uniform_int_distribution<> survivorDist(0, survivors - 1);
-        while (nextGen.size() < m_populationSize)
+        while (static_cast<int>(nextGen.size()) < m_populationSize)
         {
             int parentIdx = survivorDist(gen);
             auto childNN = std::make_unique<NeuralNetwork>(
@@ -759,57 +777,17 @@ int Trainer::ChooseBestMove(const IGame& game, const NeuralNetwork* network)
     return bestMove;
 }
 
-void FuzzEvaluationExtremes(const IGame& baseGame, NeuralNetwork* network, int nGames, std::mt19937& gen, float& outMinEval, float& outMaxEval) 
+void Trainer::ApplyPPORewards(NeuralNetwork* nn, std::vector<Step>& history)
 {
-    outMinEval = std::numeric_limits<float>::max();
-    outMaxEval = std::numeric_limits<float>::lowest();
-
-    for (int i = 0; i < nGames; ++i) 
+    for (auto& step : history)
     {
-        auto game = baseGame.Clone();
+        float clampedValue = nn->GetClampedEvaluation(step.BoardState);
+        float advantage = step.Reward - clampedValue;
+        float clippedAdv = std::max(m_epsilon, std::min(advantage, -m_epsilon));
+        float clampedTarg = clampedValue + clippedAdv;
+        float rawTarget = nn->UnclampEvaluation(clampedTarg);
 
-        while (game->GetWinner() == IGame::Winner::OnGoing) 
-        {
-            auto valid = game->GetValidMoves();
-            if (valid.empty())
-            {
-                break;
-            }
-
-            std::uniform_int_distribution<> randMove(0, static_cast<int>(valid.size()) - 1);
-            int move = valid[randMove(gen)];
-
-            game->MakeMove(move);
-
-            float eval = network->Evaluate(game->GetBoardState());
-
-            if (eval < outMinEval)
-            {
-                outMinEval = eval;
-            }
-            if (eval > outMaxEval)
-            {
-                outMaxEval = eval;
-            }
-        }
-    }
-
-    std::cout << "[FUZZING COMPLETE] Min Eval: " << outMinEval << ", Max Eval: " << outMaxEval << "\n";
-}
-
-void Trainer::ApplyPPORewards(NeuralNetwork* nn, std::vector<Step>& history) 
-{
-    const float epsilon = 0.2f;
-
-    for (auto& step : history) 
-    {
-        float newValue = nn->Evaluate(step.BoardState);
-        float advantage = step.Reward - step.ValueEstimate;
-
-        float clippedAdvantage = std::max(-epsilon, std::min(advantage, epsilon));
-        float target = step.ValueEstimate + clippedAdvantage;
-
-        nn->TrainSingle(step.BoardState, target, m_learningRate);
+        nn->TrainSingle(step.BoardState, rawTarget, m_learningRate);
     }
 }
 
@@ -817,13 +795,13 @@ IGame::Winner Trainer::PlayMatchPPO(NeuralNetwork* nn)
 {
     auto game = m_baseGame->Clone();
     std::vector<Step> history;
-
     {
-        float valueEstimate = nn->Evaluate(game->GetBoardState());
+        float valueEstimate = nn->GetClampedEvaluation(game->GetBoardState());
+        MonteCarlo::EvaluationAndMove result = MonteCarlo::MonteCarloTreeSearch(*game, m_MCTSEpisodes, nn);
         history.push_back({
             game->GetBoardState(),
             valueEstimate,
-            0.0f,
+            result.stateEvaluation,
             game->GetCurrentPlayer()
             });
 
@@ -833,16 +811,17 @@ IGame::Winner Trainer::PlayMatchPPO(NeuralNetwork* nn)
 
     while (game->GetWinner() == IGame::Winner::OnGoing)
     {
-        float valueEstimate = nn->Evaluate(game->GetBoardState());
+        float valueEstimate = nn->GetClampedEvaluation(game->GetBoardState());
+        
+
+        MonteCarlo::EvaluationAndMove result = MonteCarlo::MonteCarloTreeSearch(*game, m_MCTSEpisodes, nn);
         history.push_back({
             game->GetBoardState(),
             valueEstimate,
-            0.0f,
+            result.stateEvaluation,
             game->GetCurrentPlayer()
             });
-
-        int move = MonteCarlo::MonteCarloTreeSearch(*game, m_MCTSEpisodes, nn);
-        game->MakeMove(move);
+        game->MakeMove(result.Move);
     }
 
     IGame::Winner winner = game->GetWinner();
@@ -860,19 +839,25 @@ IGame::Winner Trainer::PlayMatchPPO(NeuralNetwork* nn)
         finalOutcome = 0.0f;
     }
 
-    for (auto& step : history)
+    float initialBlend = 1.0f;
+    float decayRate = 0.95f;
+    float currentBlend = initialBlend;
+
+    for (auto it = history.rbegin(); it != history.rend(); ++it)
     {
-        if (step.Player == 1) 
-        {
-            step.Reward = finalOutcome;
-        }
-        else 
-        {  
-            step.Reward = -finalOutcome;
-        }
+        std::cout << "Evaluation: " << it->Reward << ", estimate: " << it->ValueEstimate << "\n";
+        float target = finalOutcome;
+        it->Reward = (1.0f - currentBlend) * it->Reward + currentBlend * target;
+
+        currentBlend *= decayRate;
     }
 
     ApplyPPORewards(nn, history);
+
+    float minEval, maxEval;
+    FuzzEvaluationExtremes(*m_baseGame, nn, 50, minEval, maxEval, false);
+    nn->SetKnownEvaluationBounds(minEval, maxEval);
+
     return winner;
 }
 
@@ -905,7 +890,7 @@ void Trainer::TestChampionAgainstRandom(int games)
 
             if ((player == 1 && aiPlaysFirst) || (player == 2 && !aiPlaysFirst)) 
             {
-                move = MonteCarlo::MonteCarloTreeSearch(*game, 100, ai);
+                move = MonteCarlo::MonteCarloTreeSearch(*game, 100, ai).Move;
             }
             else
             {
@@ -984,10 +969,7 @@ void Trainer::TrainIterationsPPO(int generations)
             championNN = m_population[0].NN.get();
         }
 
-        for (int m = 0; m < m_matchesPerIteration; ++m)
-        {
-            PlayMatchPPO(championNN);
-        }
+        PlayMatchPPO(championNN);
 
         m_population[0].NN = std::make_unique<NeuralNetwork>(*championNN);
         m_championId = m_population[0].NN->Id;

@@ -12,12 +12,15 @@ public:
     void SetKnownEvaluationBounds(float minEval, float maxEval);
     float GetClampedEvaluation(const std::vector<float>& input) const;
     float Evaluate(const std::vector<float>& input) const;
+    /// <summary>Completely random mutation.</summary>
     NeuralNetwork Mutate(int weightRate, int biasRate) const;
     void GradientDescent(const std::vector<float>& input, float target, float learningRate);
+    /// <summary>Training with PPO.</summary>
     void TrainSingle(const std::vector<float>& input, float target, float learningRate);
     bool ClampedEvaluationPossible();
 
 
+    float UnclampEvaluation(float clamped) const;
     NeuralNetwork CloneWithNewId() const;
     void Save(std::string gameName) const;
     static NeuralNetwork Load(const std::string& filename);

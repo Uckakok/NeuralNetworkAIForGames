@@ -104,10 +104,7 @@ bool ConnectFour::MakeMove(int x, int y)
             {
                 m_winner = Winner::Draw;
             }
-            else 
-            {
-                m_currentPlayer = 3 - m_currentPlayer;
-            }
+            m_currentPlayer = 3 - m_currentPlayer;
 
             m_moveHistory.push_back(y);
             return true;
@@ -137,10 +134,7 @@ bool ConnectFour::MakeMove(int column)
             {
                 m_winner = Winner::Draw;
             }
-            else 
-            {
-                m_currentPlayer = 3 - m_currentPlayer;
-            }
+            m_currentPlayer = 3 - m_currentPlayer;
             m_moveHistory.push_back(column);
             return true;
         }

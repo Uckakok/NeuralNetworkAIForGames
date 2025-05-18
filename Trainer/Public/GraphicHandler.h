@@ -50,6 +50,7 @@ private:
     void CalculateBoardLayout();
 
 public:
+    /// <summary>Update board state to be rendered.</summary>
     void SubmitEntitiesFromGrid(const std::vector<std::vector<int>>& grid);
     GraphicalInterface(IGame& game);
     GraphicalInterface();

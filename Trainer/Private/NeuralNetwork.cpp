@@ -380,6 +380,16 @@ void NeuralNetwork::TrainSingle(const std::vector<float>& input, float target, f
     }
 }
 
+float NeuralNetwork::UnclampEvaluation(float clamped) const
+{
+    if (m_maxEvalKnown == m_minEvalKnown)
+    {
+        return 0.0f;
+    }
+    clamped = std::max(-1.0f, std::min(1.0f, clamped));
+    return ((clamped + 1.0f) / 2.0f) * (m_maxEvalKnown - m_minEvalKnown) + m_minEvalKnown;
+}
+
 bool NeuralNetwork::ClampedEvaluationPossible()
 {
     return m_clampedEvaluationPossible;

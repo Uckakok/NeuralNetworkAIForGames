@@ -18,7 +18,12 @@ void MonteCarlo::PerformMCTSTurn(IGame& initialState, treeNode* rootNode, Neural
 	while (!node->Children.empty()) 
 	{
 		node = SelectNodeUCB(node, initialState.GetCurrentPlayer() == 1);
-		initialState.MakeMove(node->PreviousMove);
+		if (!initialState.MakeMove(node->PreviousMove))
+		{
+			std::cout << "Impossible move attempted!\n";
+			initialState.PrintBoard();
+			std::cout << "Attempted move: " << node->PreviousMove << "\n";
+		}
 	}
 
 	if (!ExpandNode(initialState, node))
@@ -31,16 +36,31 @@ void MonteCarlo::PerformMCTSTurn(IGame& initialState, treeNode* rootNode, Neural
 		return;
 	}
 
-	float score = ai->Evaluate(initialState.GetBoardState());
-	if (initialState.GetWinner() != IGame::Winner::OnGoing && initialState.GetWinner() != IGame::Winner::Draw)
+	float score = 0;
+	if (initialState.GetWinner() == IGame::Winner::FirstPlayer)
 	{
-		score *= 100;
+		score = 1;
+	}
+	else if (initialState.GetWinner() == IGame::Winner::SecondPlayer)
+	{
+		score = -1;
+	}
+	else if (initialState.GetWinner() == IGame::Winner::Draw)
+	{
+		score = 0;
+	}
+	else
+	{
+		score = ai->GetClampedEvaluation(initialState.GetBoardState());
 	}
 
-	if (initialState.GetCurrentPlayer() != rootPlayer) 
+	//initialState.PrintBoard();
+	//std::cout << "Evaluation: " << score << "\n";
+
+	/*if (initialState.GetCurrentPlayer() != rootPlayer) 
 	{
 		score = -score;
-	}
+	}*/
 
 	while (node->Parent != nullptr) 
 	{
@@ -50,7 +70,7 @@ void MonteCarlo::PerformMCTSTurn(IGame& initialState, treeNode* rootNode, Neural
 		node->ValueChangeMute.unlock();
 		node = node->Parent;
 		initialState.UnMakeMove();
-		score *= 0.75f;
+		//score *= 0.75f;
 	}
 	node->ValueChangeMute.lock();
 	node->Visits++;
@@ -81,7 +101,7 @@ int MonteCarlo::MonteCarloTreeSearch(IGame& initialState, float seconds, NeuralN
 
 	int rootPlayer = initialState.GetCurrentPlayer();
 
-	for (int i = 0; i < 12; ++i) 
+	for (int i = 0; i < 1; ++i) 
 	{
 		auto boardCopy = initialState.Clone();
 		threads.emplace_back([boardCopy = std::move(boardCopy), startTime, timeRestrictionInSeconds, rootNode, ai, rootPlayer]() mutable 
@@ -100,34 +120,44 @@ int MonteCarlo::MonteCarloTreeSearch(IGame& initialState, float seconds, NeuralN
 	return bestAction;
 }
 
-int MonteCarlo::MonteCarloTreeSearch(IGame& initialState, int iterations, NeuralNetwork* ai)
+MonteCarlo::EvaluationAndMove MonteCarlo::MonteCarloTreeSearch(IGame& initialState, int iterations, NeuralNetwork* ai)
 {
 	treeNode* rootNode = new treeNode();
 	rootNode->Visits = 1;
 	ExpandNode(initialState, rootNode);
 
-	std::vector<std::thread> threads;
-	std::vector<std::unique_ptr<IGame>> boards;
-
 	int rootPlayer = initialState.GetCurrentPlayer();
 
-	for (int i = 0; i < 12; ++i)
-	{
+	if (iterations < 500) {
 		auto boardCopy = initialState.Clone();
-		threads.emplace_back([boardCopy = std::move(boardCopy), iterations, rootNode, ai, rootPlayer]() mutable
+		RunMCTSLoop(boardCopy.get(), iterations, rootNode, ai, rootPlayer);
+	}
+	else {
+		unsigned int threadCount = std::thread::hardware_concurrency();
+		if (threadCount == 0) threadCount = 4;
+
+		std::vector<std::thread> threads;
+		for (unsigned int i = 0; i < threadCount; ++i)
 		{
-			RunMCTSLoop(boardCopy.get(), iterations, rootNode, ai, rootPlayer);
-		});
+			auto boardCopy = initialState.Clone();
+			threads.emplace_back([boardCopy = std::move(boardCopy), iterations, rootNode, ai, rootPlayer]() mutable
+			{
+				RunMCTSLoop(boardCopy.get(), iterations, rootNode, ai, rootPlayer);
+			});
+		}
+
+		for (auto& thread : threads)
+		{
+			thread.join();
+		}
 	}
-	for (auto& thread : threads)
-	{
-		thread.join();
-	}
+
 	int bestAction = SelectBestAction(*rootNode, initialState);
 
+	float evaluation = static_cast<float>(rootNode->TotalScore == 0.0f ? 0.0f : rootNode->TotalScore/ static_cast<double>(rootNode->Visits));
 	delete rootNode;
 
-	return bestAction;
+	return { bestAction, evaluation };
 }
 
 
@@ -135,18 +165,18 @@ int MonteCarlo::SelectBestAction(treeNode& root, IGame& initialState)
 {
 	treeNode* bestChild = nullptr;
 	double bestScore;
-	if (initialState.GetCurrentPlayer() != 1)
+	if (initialState.GetCurrentPlayer() == 1)
 	{
 		bestScore = INT_MIN;
 	}
 	else
 	{
-		bestScore = INT_MIN;
+		bestScore = INT_MAX;
 	}
 	for (treeNode* child : root.Children)
 	{
 		double score = child->TotalScore / child->Visits;
-		if (initialState.GetCurrentPlayer() != 1)
+		if (initialState.GetCurrentPlayer() == 1)
 		{
 			if (score > bestScore)
 			{
@@ -156,7 +186,7 @@ int MonteCarlo::SelectBestAction(treeNode& root, IGame& initialState)
 		}
 		else
 		{
-			if (score > bestScore)
+			if (score < bestScore)
 			{
 				bestScore = score;
 				bestChild = child;
